@@ -1,4 +1,9 @@
-You have successfully created an Atlassian Plugin!
+#Example project for working with Atmosphere in a Jira Plugin
+###Work in progress
+
+Follow progress at:
+https://answers.atlassian.com/questions/32528175/using-atmosphere-in-a-jira-plugin
+
 
 Here are the SDK commands you'll use immediately:
 
@@ -8,6 +13,3 @@ Here are the SDK commands you'll use immediately:
                  - 'pi' reinstalls the plugin into the running product instance
 * atlas-help  -- prints description for all commands in the SDK
 
-Full documentation is always available at:
-
-https://developer.atlassian.com/display/DOCS/Introduction+to+the+Atlassian+Plugin+SDK
