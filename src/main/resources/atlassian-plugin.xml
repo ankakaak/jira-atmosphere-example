@@ -32,11 +32,33 @@
         </actions>
     </webwork1>
 
-    <servlet name="AtmosphereServlet" key="atmosphereServlet" class="org.atmosphere.cpr.AtmosphereServlet">
+    <servlet name="AtmosphereServlet" key="atmosphereServlet" class="com.example.cpr.JiraAtmosphereServlet">
       <url-pattern>/chat*</url-pattern>
       <init-param>
           <param-name>org.atmosphere.cpr.packages</param-name>
           <param-value>com.example.chat</param-value>
+      </init-param>
+
+
+      <!-- File not Found
+
+      <init-param>
+          <param-name>org.atmosphere.atmosphereDotXml</param-name>
+          <param-value>/atmosphere.xml</param-value>
+      </init-param>
+      -->
+
+      <init-param>
+          <param-name>org.atmosphere.useWebSocketAndServlet3</param-name>
+          <param-value>false</param-value>
+      </init-param>
+      <init-param>
+          <param-name>org.atmosphere.useBlocking</param-name>
+          <param-value>true</param-value>
+      </init-param>
+        <init-param>
+          <param-name>org.atmosphere.useWebSocket</param-name>
+          <param-value>false</param-value>
       </init-param>
     </servlet>
 

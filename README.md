@@ -13,3 +13,12 @@ Here are the SDK commands you'll use immediately:
                  - 'pi' reinstalls the plugin into the running product instance
 * atlas-help  -- prints description for all commands in the SDK
 
+
+
+#Note
+
+Skriv en ny AtmosphereServlet basert på org.atmosphere.cpr.AtmosphereServlet.java
+
+Stikkord: 	useServlet30(false)
+
+http://atmosphere.github.io/atmosphere/apidocs/index.html?org/atmosphere/cpr/AtmosphereFramework.html

@@ -1,5 +1,5 @@
 /**
- * Copyright 2013 Jeanfrancois Arcand
+ * Copyright 2012 Jeanfrancois Arcand
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,141 +14,136 @@
  * limitations under the License.
  */
 /*
- * Highly inspired by Portal v1.0
- * http://github.com/flowersinthesand/portal
+ * IE streaming/XDR supports is copied/highly inspired by http://code.google.com/p/jquery-stream/
  *
- * Copyright 2011-2013, Donghwan Kim
+ * Copyright 2011, Donghwan Kim
  * Licensed under the Apache License, Version 2.0
  * http://www.apache.org/licenses/LICENSE-2.0
- */
+ *
+ * LocalStorage supports is copied/highly inspired by https://github.com/flowersinthesand/jquery-socket
+ * Copyright 2011, Donghwan Kim
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * */
 /**
  * Official documentation of this library: https://github.com/Atmosphere/atmosphere/wiki/jQuery.atmosphere.js-API
  */
-(function () {
+jQuery.atmosphere = function() {
+    jQuery(window).bind("unload.atmosphere", function() {
+        jQuery.atmosphere.unsubscribe();
+    });
 
-    "use strict";
+    // Prevent ESC to kill the connection from Firefox.
+    jQuery(window).keypress(function(e){
+        if(e.keyCode == 27){
+            e.preventDefault();
+        }
+    });
 
-    var version = "2.0.4-javascript",
-        atmosphere = {},
-        guid,
-        requests = [],
-        callbacks = [],
-        hasOwn = Object.prototype.hasOwnProperty;
+    var parseHeaders = function(headerString) {
+        var match, rheaders = /^(.*?):[ \t]*([^\r\n]*)\r?$/mg, headers = {};
+        while (match = rheaders.exec(headerString)) {
+            headers[match[1]] = match[2];
+        }
+        return headers;
+    };
 
-    atmosphere = {
+    return {
+        version : "1.0.2",
+        requests : [],
+        callbacks : [],
 
-        onError: function (response) {
+        onError : function(response) {
         },
-        onClose: function (response) {
+        onClose : function(response) {
         },
-        onOpen: function (response) {
+        onOpen : function(response) {
         },
-        onReopen: function (response) {
+        onMessage : function(response) {
         },
-        onMessage: function (response) {
+        onReconnect : function(request, response) {
         },
-        onReconnect: function (request, response) {
+        onMessagePublished : function(response) {
         },
-        onMessagePublished: function (response) {
+        onTransportFailure : function(response) {
         },
-        onTransportFailure: function (errorMessage, _request) {
-        },
-        onLocalMessage: function (response) {
-        },
-        onFailureToReconnect: function (request, response) {
-        },
-        onClientTimeout: function(request){
+        onLocalMessage : function (response) {
         },
 
-        AtmosphereRequest: function (options) {
+        AtmosphereRequest : function(options) {
 
             /**
              * {Object} Request parameters.
-             *
              * @private
              */
             var _request = {
                 timeout: 300000,
                 method: 'GET',
                 headers: {},
-                contentType: '',
+                contentType : '',
                 callback: null,
-                url: '',
-                data: '',
-                suspend: true,
-                maxRequest: -1,
-                reconnect: true,
-                maxStreamingLength: 10000000,
-                lastIndex: 0,
-                logLevel: 'info',
-                requestCount: 0,
+                url : '',
+                data : '',
+                suspend : true,
+                maxRequest : 60,
+                reconnect : true,
+                maxStreamingLength : 10000000,
+                lastIndex : 0,
+                logLevel : 'info',
+                requestCount : 0,
                 fallbackMethod: 'GET',
-                fallbackTransport: 'streaming',
-                transport: 'long-polling',
+                fallbackTransport : 'streaming',
+                transport : 'long-polling',
                 webSocketImpl: null,
-                webSocketBinaryType: null,
-                dispatchUrl: null,
+                webSocketUrl: null,
                 webSocketPathDelimiter: "@@",
-                enableXDR: false,
-                rewriteURL: false,
-                attachHeadersAsQueryString: true,
-                executeCallbackBeforeReconnect: false,
-                readyState: 0,
-                lastTimestamp: 0,
-                withCredentials: false,
-                trackMessageLength: false,
-                messageDelimiter: '|',
-                connectTimeout: -1,
-                reconnectInterval: 0,
-                dropAtmosphereHeaders: true,
-                uuid: 0,
-                async: true,
-                shared: false,
-                readResponsesHeaders: false,
-                maxReconnectOnClose: 5,
-                enableProtocol: true,
-                onError: function (response) {
+                enableXDR : false,
+                rewriteURL : false,
+                attachHeadersAsQueryString : true,
+                executeCallbackBeforeReconnect : false,
+                readyState : 0,
+                lastTimestamp : 0,
+                withCredentials : false,
+                trackMessageLength : false ,
+                messageDelimiter : '|',
+                connectTimeout : -1,
+                reconnectInterval : 0,
+                dropAtmosphereHeaders : true,
+                uuid : 0,
+                shared : false,
+                readResponsesHeaders : true,
+                onError : function(response) {
                 },
-                onClose: function (response) {
+                onClose : function(response) {
                 },
-                onOpen: function (response) {
+                onOpen : function(response) {
                 },
-                onMessage: function (response) {
+                onMessage : function(response) {
                 },
-                onReopen: function (request, response) {
+                onReconnect : function(request, response) {
                 },
-                onReconnect: function (request, response) {
+                onMessagePublished : function(response) {
                 },
-                onMessagePublished: function (response) {
+                onTransportFailure : function (reason, request) {
                 },
-                onTransportFailure: function (reason, request) {
-                },
-                onLocalMessage: function (request) {
-                },
-                onFailureToReconnect: function (request, response) {
-                },
-                onClientTimeout: function(request){
+                onLocalMessage : function (request) {
                 }
             };
 
             /**
              * {Object} Request's last response.
-             *
              * @private
              */
             var _response = {
                 status: 200,
-                reasonPhrase: "OK",
-                responseBody: '',
-                messages: [],
-                headers: [],
-                state: "messageReceived",
-                transport: "polling",
+                responseBody : '',
+                headers : [],
+                state : "messageReceived",
+                transport : "polling",
                 error: null,
-                request: null,
-                partialMessage: "",
-                errorHandled: false,
-                id: 0
+                request : null,
+                partialMessage : "",
+                id : 0
             };
 
             /**
@@ -166,7 +161,8 @@
             var _sse = null;
 
             /**
-             * {XMLHttpRequest, ActiveXObject} Opened ajax request (in case of http-streaming or long-polling)
+             * {XMLHttpRequest, ActiveXObject} Opened ajax request (in case of
+             * http-streaming or long-polling)
              *
              * @private
              */
@@ -209,37 +205,30 @@
 
             /**
              * A local "channel' of communication.
-             *
              * @private
              */
             var _localSocketF = null;
 
             /**
              * The storage used.
-             *
              * @private
              */
             var _storageService;
 
             /**
              * Local communication
-             *
              * @private
              */
             var _localStorageService = null;
 
             /**
              * A Unique ID
-             *
              * @private
              */
-            var guid = atmosphere.util.now();
+            var guid = jQuery.now();
 
             /** Trace time */
             var _traceTimer;
-
-            /** Key for connection sharing */
-            var _sharingKey;
 
             // Automatic call to subscribe
             _subscribe(options);
@@ -262,7 +251,6 @@
 
             /**
              * Re-initialize atmosphere object.
-             *
              * @private
              */
             function _reinit() {
@@ -271,136 +259,25 @@
             }
 
             /**
-             *
-             * @private
-             */
-            function _verifyStreamingLength(ajaxRequest, rq) {
-                // Wait to be sure we have the full message before closing.
-                if (_response.partialMessage === "" && (rq.transport === 'streaming') && (ajaxRequest.responseText.length > rq.maxStreamingLength)) {
-                    _response.messages = [];
-                    _invokeClose(true);
-                    _disconnect();
-                    _clearState();
-                    _reconnect(ajaxRequest, rq, 0);
-                }
-            }
-
-            /**
-             * Disconnect
-             *
-             * @private
-             */
-            function _disconnect() {
-                if (_request.enableProtocol && !_request.firstMessage) {
-                    var query = "X-Atmosphere-Transport=close&X-Atmosphere-tracking-id=" + _request.uuid;
-
-                    atmosphere.util.each(_request.headers, function (name, value) {
-                        var h = atmosphere.util.isFunction(value) ? value.call(this, _request, _request, _response) : value;
-                        if (h != null) {
-                            query += "&" + encodeURIComponent(name) + "=" + encodeURIComponent(h);
-                        }
-                    });
-
-                    var url = _request.url.replace(/([?&])_=[^&]*/, query);
-                    url = url + (url === _request.url ? (/\?/.test(_request.url) ? "&" : "?") + query : "");
-                    _request.attachHeadersAsQueryString = false;
-                    _request.dropAtmosphereHeaders = true;
-                    _request.url = url;
-                    _request.transport = 'polling';
-                    _pushOnClose("", _request);
-                }
-            }
-
-            /**
-             * Close request.
-             *
-             * @private
-             */
-            function _close() {
-                _request.reconnect = false;
-                _abordingConnection = true;
-                _response.request = _request;
-                _response.state = 'unsubscribe';
-                _response.responseBody = "";
-                _response.status = 408;
-                _response.partialMessage = "";
-                _invokeCallback();
-                _disconnect();
-                _clearState();
-            }
-
-            function _clearState() {
-                _response.partialMessage = "";
-                if (_request.id) {
-                    clearTimeout(_request.id);
-                }
-
-                if (_ieStream != null) {
-                    _ieStream.close();
-                    _ieStream = null;
-                }
-                if (_jqxhr != null) {
-                    _jqxhr.abort();
-                    _jqxhr = null;
-                }
-                if (_activeRequest != null) {
-                    _activeRequest.abort();
-                    _activeRequest = null;
-                }
-                if (_websocket != null) {
-                    if (_websocket.webSocketOpened) {
-                        _websocket.close();
-                    }
-                    _websocket = null;
-                }
-                if (_sse != null) {
-                    _sse.close();
-                    _sse = null;
-                }
-                _clearStorage();
-            }
-
-            function _clearStorage() {
-                // Stop sharing a connection
-                if (_storageService != null) {
-                    // Clears trace timer
-                    clearInterval(_traceTimer);
-                    // Removes the trace
-                    document.cookie = _sharingKey + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-                    // The heir is the parent unless unloading
-                    _storageService.signal("close", {
-                        reason: "",
-                        heir: !_abordingConnection ? guid : (_storageService.get("children") || [])[0]
-                    });
-                    _storageService.close();
-                }
-                if (_localStorageService != null) {
-                    _localStorageService.close();
-                }
-            }
-
-            /**
              * Subscribe request using request transport. <br>
              * If request is currently opened, this one will be closed.
              *
-             * @param {Object} Request parameters.
+             * @param {Object}
+                *            Request parameters.
              * @private
              */
             function _subscribe(options) {
                 _reinit();
 
-                _request = atmosphere.util.extend(_request, options);
-                // Allow at least 1 request
-                _request.mrequest = _request.reconnect;
-                if (!_request.reconnect) {
-                    _request.reconnect = true;
-                }
+                _request = jQuery.extend(_request, options);
             }
 
             /**
-             * Check if web socket is supported (check for custom implementation provided by request object or browser implementation).
+             * Check if web socket is supported (check for custom implementation
+             * provided by request object or browser implementation).
              *
-             * @returns {boolean} True if web socket is supported, false otherwise.
+             * @returns {boolean} True if web socket is supported, false
+             *          otherwise.
              * @private
              */
             function _supportWebsocket() {
@@ -408,9 +285,11 @@
             }
 
             /**
-             * Check if server side events (SSE) is supported (check for custom implementation provided by request object or browser implementation).
+             * Check if server side events (SSE) is supported (check for custom implementation
+             * provided by request object or browser implementation).
              *
-             * @returns {boolean} True if web socket is supported, false otherwise.
+             * @returns {boolean} True if web socket is supported, false
+             *          otherwise.
              * @private
              */
             function _supportSSE() {
@@ -419,51 +298,59 @@
 
             /**
              * Open request using request transport. <br>
-             * If request transport is 'websocket' but websocket can't be opened, request will automatically reconnect using fallback transport.
+             * If request transport is 'websocket' but websocket can't be
+             * opened, request will automatically reconnect using fallback
+             * transport.
              *
              * @private
              */
             function _execute() {
                 // Shared across multiple tabs/windows.
                 if (_request.shared) {
-                    _localStorageService = _local(_request);
-                    if (_localStorageService != null) {
-                        if (_request.logLevel === 'debug') {
-                            atmosphere.util.debug("Storage service available. All communication will be local");
-                        }
 
-                        if (_localStorageService.open(_request)) {
-                            // Local connection.
-                            return;
-                        }
+                    var version  = 0;
+                    if (navigator.appVersion.indexOf("MSIE") != -1) {
+                        version = parseFloat(navigator.appVersion.split("MSIE")[1]);
                     }
 
-                    if (_request.logLevel === 'debug') {
-                        atmosphere.util.debug("No Storage service available.");
+                    // Multi Tab aren't working on IE 8. Tested with atmosphere.js and jquery-socket.js
+                    // both pops up a blank page.
+                    if (version != 8) {
+                        _localStorageService = _local(_request);
+                        if (_localStorageService != null) {
+                            if (_request.logLevel == 'debug') {
+                                jQuery.atmosphere.debug("Storage service available. All communication will be local");
+                            }
+
+                            if (_localStorageService.open(_request)) {
+                                // Local connection.
+                                return;
+                            }
+                        }
+
+                        if (_request.logLevel == 'debug') {
+                            jQuery.atmosphere.debug("No Storage service available.");
+                        }
+                    } else {
+                        jQuery.atmosphere.info("Multi tab not supported on IE 8.");
                     }
                     // Wasn't local or an error occurred
                     _localStorageService = null;
                 }
 
-                // Protocol
-                _request.firstMessage = true;
-                _request.isOpen = false;
-                _request.ctime = atmosphere.util.now();
+                if (_request.transport != 'websocket' && _request.transport != 'sse') {
+                    _open('opening', _request.transport, _request);
+                    _executeRequest();
 
-                if (_request.transport !== 'websocket' && _request.transport !== 'sse') {
-                    _executeRequest(_request);
-
-                } else if (_request.transport === 'websocket') {
+                } else if (_request.transport == 'websocket') {
                     if (!_supportWebsocket()) {
-                        _reconnectWithFallbackTransport("Websocket is not supported, using request.fallbackTransport (" + _request.fallbackTransport
-                            + ")");
+                        _reconnectWithFallbackTransport("Websocket is not supported, using request.fallbackTransport (" + _request.fallbackTransport + ")");
                     } else {
                         _executeWebSocket(false);
                     }
-                } else if (_request.transport === 'sse') {
+                } else if (_request.transport == 'sse') {
                     if (!_supportSSE()) {
-                        _reconnectWithFallbackTransport("Server Side Events(SSE) is not supported, using request.fallbackTransport ("
-                            + _request.fallbackTransport + ")");
+                        _reconnectWithFallbackTransport("Server Side Events(SSE) is not supported, using request.fallbackTransport (" + _request.fallbackTransport + ")");
                     } else {
                         _executeSSE(false);
                     }
@@ -472,51 +359,48 @@
 
             function _local(request) {
                 var trace, connector, orphan, name = "atmosphere-" + request.url, connectors = {
-                    storage: function () {
-                        function onstorage(event) {
-                            if (event.key === name && event.newValue) {
-                                listener(event.newValue);
-                            }
-                        }
-
-                        if (!atmosphere.util.storage) {
+                    storage: function() {
+                        if (!jQuery.atmosphere.supportStorage()) {
                             return;
                         }
 
                         var storage = window.localStorage,
-                            get = function (key) {
-                                return atmosphere.util.parseJSON(storage.getItem(name + "-" + key));
+                            get = function(key) {
+                                return jQuery.parseJSON(storage.getItem(name + "-" + key));
                             },
-                            set = function (key, value) {
-                                storage.setItem(name + "-" + key, atmosphere.util.stringifyJSON(value));
+                            set = function(key, value) {
+                                storage.setItem(name + "-" + key, jQuery.stringifyJSON(value));
                             };
 
                         return {
-                            init: function () {
+                            init: function() {
                                 set("children", get("children").concat([guid]));
-                                atmosphere.util.on(window, "storage", onstorage);
+                                jQuery(window).on("storage.socket", function(event) {
+                                    event = event.originalEvent;
+                                    if (event.key === name && event.newValue) {
+                                        listener(event.newValue);
+                                    }
+                                });
                                 return get("opened");
                             },
-                            signal: function (type, data) {
-                                storage.setItem(name, atmosphere.util.stringifyJSON({
-                                    target: "p",
-                                    type: type,
-                                    data: data
-                                }));
+                            signal: function(type, data) {
+                                storage.setItem(name, jQuery.stringifyJSON({target: "p", type: type, data: data}));
                             },
-                            close: function () {
-                                var children = get("children");
+                            close: function() {
+                                var index, children = get("children");
 
-                                atmosphere.util.off(window, "storage", onstorage);
+                                jQuery(window).off("storage.socket");
                                 if (children) {
-                                    if (removeFromArray(children, request.id)) {
+                                    index = jQuery.inArray(request.id, children);
+                                    if (index > -1) {
+                                        children.splice(index, 1);
                                         set("children", children);
                                     }
                                 }
                             }
                         };
                     },
-                    windowref: function () {
+                    windowref: function() {
                         var win = window.open("", name.replace(/\W/g, ""));
 
                         if (!win || win.closed || !win.callbacks) {
@@ -524,25 +408,28 @@
                         }
 
                         return {
-                            init: function () {
+                            init: function() {
                                 win.callbacks.push(listener);
                                 win.children.push(guid);
                                 return win.opened;
                             },
-                            signal: function (type, data) {
+                            signal: function(type, data) {
                                 if (!win.closed && win.fire) {
-                                    win.fire(atmosphere.util.stringifyJSON({
-                                        target: "p",
-                                        type: type,
-                                        data: data
-                                    }));
+                                    win.fire(jQuery.stringifyJSON({target: "p", type: type, data: data}));
                                 }
                             },
-                            close: function () {
+                            close : function() {
+                                function remove(array, e) {
+                                    var index = jQuery.inArray(e, array);
+                                    if (index > -1) {
+                                        array.splice(index, 1);
+                                    }
+                                }
+
                                 // Removes traces only if the parent is alive
                                 if (!orphan) {
-                                    removeFromArray(win.callbacks, listener);
-                                    removeFromArray(win.children, guid);
+                                    remove(win.callbacks, listener);
+                                    remove(win.children, guid);
                                 }
                             }
 
@@ -550,26 +437,14 @@
                     }
                 };
 
-                function removeFromArray(array, val) {
-                    var i, length = array.length;
-
-                    for (i = 0; i < length; i++) {
-                        if (array[i] === val) {
-                            array.splice(i, 1);
-                        }
-                    }
-
-                    return length !== array.length;
-                }
-
                 // Receives open, close and message command from the parent
                 function listener(string) {
-                    var command = atmosphere.util.parseJSON(string), data = command.data;
+                    var command = jQuery.parseJSON(string), data = command.data;
 
                     if (command.target === "c") {
                         switch (command.type) {
                             case "open":
-                                _open("opening", 'local', _request);
+                                _open("opening", 'local', _request)
                                 break;
                             case "close":
                                 if (!orphan) {
@@ -581,7 +456,7 @@
                                         if (data.heir === guid) {
                                             _execute();
                                         } else {
-                                            setTimeout(function () {
+                                            setTimeout(function() {
                                                 _execute();
                                             }, 100);
                                         }
@@ -601,13 +476,13 @@
                 function findTrace() {
                     var matcher = new RegExp("(?:^|; )(" + encodeURIComponent(name) + ")=([^;]*)").exec(document.cookie);
                     if (matcher) {
-                        return atmosphere.util.parseJSON(decodeURIComponent(matcher[2]));
+                        return jQuery.parseJSON(decodeURIComponent(matcher[2]));
                     }
                 }
 
                 // Finds and validates the parent socket's trace from the cookie
                 trace = findTrace();
-                if (!trace || atmosphere.util.now() - trace.ts > 1000) {
+                if (!trace || jQuery.now() - trace.ts > 1000) {
                     return;
                 }
 
@@ -618,45 +493,35 @@
                 }
 
                 return {
-                    open: function () {
+                    open: function() {
                         var parentOpened;
 
                         // Checks the shared one is alive
-                        _traceTimer = setInterval(function () {
+                        _traceTimer = setInterval(function() {
                             var oldTrace = trace;
                             trace = findTrace();
                             if (!trace || oldTrace.ts === trace.ts) {
                                 // Simulates a close signal
-                                listener(atmosphere.util.stringifyJSON({
-                                    target: "c",
-                                    type: "close",
-                                    data: {
-                                        reason: "error",
-                                        heir: oldTrace.heir
-                                    }
-                                }));
+                                listener(jQuery.stringifyJSON({target: "c", type: "close", data: {reason: "error", heir: oldTrace.heir}}));
                             }
                         }, 1000);
 
                         parentOpened = connector.init();
                         if (parentOpened) {
                             // Firing the open event without delay robs the user of the opportunity to bind connecting event handlers
-                            setTimeout(function () {
-                                _open("opening", 'local', request);
+                            setTimeout(function() {
+                                _open("opening", 'local', request)
                             }, 50);
                         }
                         return parentOpened;
                     },
-                    send: function (event) {
+                    send: function(event) {
                         connector.signal("send", event);
                     },
-                    localSend: function (event) {
-                        connector.signal("localSend", atmosphere.util.stringifyJSON({
-                            id: guid,
-                            event: event
-                        }));
+                    localSend: function(event) {
+                        connector.signal("localSend", jQuery.stringifyJSON({id: guid , event: event}));
                     },
-                    close: function () {
+                    close: function() {
                         // Do not signal the parent if this method is executed by the unload event handler
                         if (!_abordingConnection) {
                             clearInterval(_traceTimer);
@@ -665,46 +530,41 @@
                         }
                     }
                 };
-            }
+            };
 
             function share() {
                 var storageService, name = "atmosphere-" + _request.url, servers = {
                     // Powered by the storage event and the localStorage
                     // http://www.w3.org/TR/webstorage/#event-storage
-                    storage: function () {
-                        function onstorage(event) {
-                            // When a deletion, newValue initialized to null
-                            if (event.key === name && event.newValue) {
-                                listener(event.newValue);
-                            }
-                        }
-
-                        if (!atmosphere.util.storage) {
+                    storage: function() {
+                        if (!jQuery.atmosphere.supportStorage()) {
                             return;
                         }
 
                         var storage = window.localStorage;
 
                         return {
-                            init: function () {
+                            init: function() {
                                 // Handles the storage event
-                                atmosphere.util.on(window, "storage", onstorage);
+                                jQuery(window).on("storage.socket", function(event) {
+                                    event = event.originalEvent;
+                                    // When a deletion, newValue initialized to null
+                                    if (event.key === name && event.newValue) {
+                                        listener(event.newValue);
+                                    }
+                                });
                             },
-                            signal: function (type, data) {
-                                storage.setItem(name, atmosphere.util.stringifyJSON({
-                                    target: "c",
-                                    type: type,
-                                    data: data
-                                }));
+                            signal: function(type, data) {
+                                storage.setItem(name, jQuery.stringifyJSON({target: "c", type: type, data: data}));
                             },
-                            get: function (key) {
-                                return atmosphere.util.parseJSON(storage.getItem(name + "-" + key));
+                            get: function(key) {
+                                return jQuery.parseJSON(storage.getItem(name + "-" + key));
                             },
-                            set: function (key, value) {
-                                storage.setItem(name + "-" + key, atmosphere.util.stringifyJSON(value));
+                            set: function(key, value) {
+                                storage.setItem(name + "-" + key, jQuery.stringifyJSON(value));
                             },
-                            close: function () {
-                                atmosphere.util.off(window, "storage", onstorage);
+                            close : function() {
+                                jQuery(window).off("storage.socket");
                                 storage.removeItem(name);
                                 storage.removeItem(name + "-opened");
                                 storage.removeItem(name + "-children");
@@ -714,27 +574,18 @@
                     },
                     // Powered by the window.open method
                     // https://developer.mozilla.org/en/DOM/window.open
-                    windowref: function () {
+                    windowref: function() {
                         // Internet Explorer raises an invalid argument error
                         // when calling the window.open method with the name containing non-word characters
-                        var neim = name.replace(/\W/g, ""), container = document.getElementById(neim), win;
-
-                        if (!container) {
-                            container = document.createElement("div");
-                            container.id = neim;
-                            container.style.display = "none";
-                            container.innerHTML = '<iframe name="' + neim + '" />';
-                            document.body.appendChild(container);
-                        }
-
-                        win = container.firstChild.contentWindow;
+                        var neim = name.replace(/\W/g, ""), win = (jQuery('iframe[name="' + neim + '"]')[0]
+                            || jQuery('<iframe name="' + neim + '" />').hide().appendTo("body")[0]).contentWindow;
 
                         return {
-                            init: function () {
+                            init: function() {
                                 // Callbacks from different windows
                                 win.callbacks = [listener];
                                 // In IE 8 and less, only string argument can be safely passed to the function in other window
-                                win.fire = function (string) {
+                                win.fire = function(string) {
                                     var i;
 
                                     for (i = 0; i < win.callbacks.length; i++) {
@@ -742,32 +593,28 @@
                                     }
                                 };
                             },
-                            signal: function (type, data) {
+                            signal: function(type, data) {
                                 if (!win.closed && win.fire) {
-                                    win.fire(atmosphere.util.stringifyJSON({
-                                        target: "c",
-                                        type: type,
-                                        data: data
-                                    }));
+                                    win.fire(jQuery.stringifyJSON({target: "c", type: type, data: data}));
                                 }
                             },
-                            get: function (key) {
+                            get: function(key) {
                                 return !win.closed ? win[key] : null;
                             },
-                            set: function (key, value) {
+                            set: function(key, value) {
                                 if (!win.closed) {
                                     win[key] = value;
                                 }
                             },
-                            close: function () {
-                            }
+                            close : function() {}
                         };
                     }
                 };
 
+
                 // Receives send and close command from the children
                 function listener(string) {
-                    var command = atmosphere.util.parseJSON(string), data = command.data;
+                    var command = jQuery.parseJSON(string), data = command.data;
 
                     if (command.target === "p") {
                         switch (command.type) {
@@ -786,24 +633,21 @@
 
                 _localSocketF = function propagateMessageEvent(context) {
                     storageService.signal("message", context);
-                };
+                }
 
                 function leaveTrace() {
-                    document.cookie = _sharingKey + "=" +
+                    document.cookie = encodeURIComponent(name) + "=" +
                         // Opera's JSON implementation ignores a number whose a last digit of 0 strangely
                         // but has no problem with a number whose a last digit of 9 + 1
-                        encodeURIComponent(atmosphere.util.stringifyJSON({
-                            ts: atmosphere.util.now() + 1,
-                            heir: (storageService.get("children") || [])[0]
-                        }));
+                        encodeURIComponent(jQuery.stringifyJSON({ts: jQuery.now() + 1, heir: (storageService.get("children") || [])[0]}));
                 }
 
                 // Chooses a storageService
                 storageService = servers.storage() || servers.windowref();
                 storageService.init();
 
-                if (_request.logLevel === 'debug') {
-                    atmosphere.util.debug("Installed StorageService " + storageService);
+                if (_request.logLevel == 'debug') {
+                    jQuery.atmosphere.debug("Installed StorageService " + storageService);
                 }
 
                 // List of children sockets
@@ -814,7 +658,6 @@
                     storageService.set("opened", false);
                 }
                 // Leaves traces
-                _sharingKey = encodeURIComponent(name);
                 leaveTrace();
                 _traceTimer = setInterval(leaveTrace, 1000);
 
@@ -825,7 +668,7 @@
              * @private
              */
             function _open(state, transport, request) {
-                if (_request.shared && transport !== 'local') {
+                if (_request.shared && transport != 'local') {
                     share();
                 }
 
@@ -833,136 +676,163 @@
                     _storageService.set("opened", true);
                 }
 
-                request.close = function () {
+                request.close = function() {
                     _close();
-                };
-
-                if (_requestCount > 0 && state === 're-connecting') {
-                    request.isReopen = true;
-                    _tryingToReconnect(_response);
-                } else if (_response.error == null) {
-                    _response.request = request;
-                    var prevState = _response.state;
-                    _response.state = state;
-                    var prevTransport = _response.transport;
-                    _response.transport = transport;
-
-                    var _body = _response.responseBody;
-                    _invokeCallback();
-                    _response.responseBody = _body;
-
-                    _response.state = prevState;
-                    _response.transport = prevTransport;
+                    request.reconnect = false;
                 }
+
+                _response.request = request;
+                var prevState = _response.state;
+                _response.state = state;
+                _response.status = 200;
+                var prevTransport = _response.transport;
+                _response.transport = transport;
+
+                var _body = _response.responseBody;
+                _invokeCallback();
+                _response.responseBody = _body;
+
+                _response.state = prevState;
+                _response.transport = prevTransport;
             }
 
             /**
              * Execute request using jsonp transport.
              *
-             * @param request {Object} request Request parameters, if undefined _request object will be used.
+             * @param request
+             *            {Object} request Request parameters, if
+             *            undefined _request object will be used.
              * @private
              */
             function _jsonp(request) {
                 // When CORS is enabled, make sure we force the proper transport.
-                request.transport = "jsonp";
+                request.transport="jsonp";
 
-                var rq = _request, script;
-                if ((request != null) && (typeof (request) !== 'undefined')) {
+                var rq = _request;
+                if ((request != null) && (typeof(request) != 'undefined')) {
                     rq = request;
                 }
 
-                _jqxhr = {
-                    open: function () {
-                        var callback = "atmosphere" + (++guid);
-
-                        function poll() {
-                            var url = rq.url;
-                            if (rq.dispatchUrl != null) {
-                                url += rq.dispatchUrl;
-                            }
-
-                            var data = rq.data;
-                            if (rq.attachHeadersAsQueryString) {
-                                url = _attachHeaders(rq);
-                                if (data !== '') {
-                                    url += "&X-Atmosphere-Post-Body=" + encodeURIComponent(data);
-                                }
-                                data = '';
-                            }
-
-                            var head = document.head || document.getElementsByTagName("head")[0] || document.documentElement;
-
-                            script = document.createElement("script");
-                            script.src = url + "&jsonpTransport=" + callback;
-                            script.clean = function () {
-                                script.clean = script.onerror = script.onload = script.onreadystatechange = null;
-                                if (script.parentNode) {
-                                    script.parentNode.removeChild(script);
-                                }
-                            };
-                            script.onload = script.onreadystatechange = function () {
-                                if (!script.readyState || /loaded|complete/.test(script.readyState)) {
-                                    script.clean();
-                                }
-                            };
-                            script.onerror = function () {
-                                script.clean();
-                                _onError(0, "maxReconnectOnClose reached");
-                            };
-
-                            head.insertBefore(script, head.firstChild);
-                        }
-
-                        // Attaches callback
-                        window[callback] = function (msg) {
-                            if (rq.reconnect) {
-                                if (rq.maxRequest === -1 || rq.requestCount++ < rq.maxRequest) {
-                                    // _readHeaders(_jqxhr, rq);
-
-                                    if (!rq.executeCallbackBeforeReconnect) {
-                                        _reconnect(_jqxhr, rq, 0);
-                                    }
-
-                                    if (msg != null && typeof msg !== 'string') {
-                                        try {
-                                            msg = msg.message;
-                                        } catch (err) {
-                                            // The message was partial
-                                        }
-                                    }
-
-                                    var skipCallbackInvocation = _trackMessageSize(msg, rq, _response);
-                                    if (!skipCallbackInvocation) {
-                                        _prepareCallback(_response.responseBody, "messageReceived", 200, rq.transport);
-                                    }
-
-                                    if (rq.executeCallbackBeforeReconnect) {
-                                        _reconnect(_jqxhr, rq, 0);
-                                    }
-                                } else {
-                                    atmosphere.util.log(_request.logLevel, ["JSONP reconnect maximum try reached " + _request.requestCount]);
-                                    _onError(0, "maxRequest reached");
-                                }
-                            }
-                        };
-                        setTimeout(function () {
-                            poll();
-                        }, 50);
-                    },
-                    abort: function () {
-                        if (script.clean) {
-                            script.clean();
-                        }
+                var url = rq.url;
+                var data = rq.data;
+                if (rq.attachHeadersAsQueryString) {
+                    url = _attachHeaders(rq);
+                    if (data != '') {
+                        url += "&X-Atmosphere-Post-Body=" + encodeURIComponent(data);
                     }
-                };
+                    data = '';
+                }
 
-                _jqxhr.open();
+                _jqxhr = jQuery.ajax({
+                    url : url,
+                    type : rq.method,
+                    dataType: "jsonp",
+                    error : function(jqXHR, textStatus, errorThrown) {
+                        if (jqXHR.status < 300 && rq.requestCount++ < rq.maxRequest) {
+                            _reconnect(_jqxhr, rq);
+                        } else {
+                            _prepareCallback(textStatus, "error", jqXHR.status, rq.transport);
+                        }
+                    },
+                    jsonp : "jsonpTransport",
+                    success: function(json) {
+
+                        if (rq.requestCount++ < rq.maxRequest) {
+                            _readHeaders(_jqxhr, rq);
+
+                            if (!rq.executeCallbackBeforeReconnect) {
+                                _reconnect(_jqxhr, rq);
+                            }
+
+                            var msg = json.message;
+                            if (msg != null && typeof msg != 'string') {
+                                try {
+                                    msg = jQuery.stringifyJSON(msg);
+                                } catch (err) {
+                                    // The message was partial
+                                }
+                            }
+
+                            _prepareCallback(msg, "messageReceived", 200, rq.transport);
+
+                            if (rq.executeCallbackBeforeReconnect) {
+                                _reconnect(_jqxhr, rq);
+                            }
+                        } else {
+                            jQuery.atmosphere.log(_request.logLevel, ["JSONP reconnect maximum try reached " + _request.requestCount]);
+                            _onError();
+                        }
+                    },
+                    data : rq.data,
+                    beforeSend : function(jqXHR) {
+                        _doRequest(jqXHR, rq, false);
+                    }
+                });
+            }
+
+            /**
+             * Execute request using ajax transport.
+             *
+             * @param request
+             *            {Object} request Request parameters, if
+             *            undefined _request object will be used.
+             * @private
+             */
+            function _ajax(request) {
+                var rq = _request;
+                if ((request != null) && (typeof(request) != 'undefined')) {
+                    rq = request;
+                }
+
+                var url = rq.url;
+                var data = rq.data;
+                if (rq.attachHeadersAsQueryString) {
+                    url = _attachHeaders(rq);
+                    if (data != '') {
+                        url += "&X-Atmosphere-Post-Body=" + encodeURIComponent(data);
+                    }
+                    data = '';
+                }
+
+                _jqxhr = jQuery.ajax({
+                    url : url,
+                    type : rq.method,
+                    error : function(jqXHR, textStatus, errorThrown) {
+                        if (jqXHR.status < 300 && rq.requestCount++ < rq.maxRequest) {
+                            _reconnect(_jqxhr, rq);
+                        } else {
+                            _prepareCallback(textStatus, "error", jqXHR.status, rq.transport);
+                        }
+                    },
+                    success: function(data, textStatus, jqXHR) {
+
+                        if (rq.requestCount++ < rq.maxRequest) {
+                            if (!rq.executeCallbackBeforeReconnect) {
+                                _reconnect(_jqxhr, rq);
+                            }
+
+                            _prepareCallback(data, "messageReceived", 200, rq.transport);
+
+                            if (rq.executeCallbackBeforeReconnect) {
+                                _reconnect(_jqxhr, rq);
+                            }
+                        } else {
+                            jQuery.atmosphere.log(_request.logLevel, ["AJAX reconnect maximum try reached " + _request.requestCount]);
+                            _onError();
+                        }
+                    },
+                    data : rq.data,
+                    beforeSend : function(jqXHR) {
+                        _doRequest(jqXHR, rq, false);
+                    }
+                });
             }
 
             /**
              * Build websocket object.
              *
-             * @param location {string} Web socket url.
+             * @param location
+             *            {string} Web socket url.
              * @returns {websocket} Web socket object.
              * @private
              */
@@ -981,11 +851,13 @@
             /**
              * Build web socket url from request url.
              *
-             * @return {string} Web socket url (start with "ws" or "wss" for secure web socket).
+             * @return {string} Web socket url (start with "ws" or "wss" for
+             *         secure web socket).
              * @private
              */
             function _buildWebSocketUrl() {
-                return atmosphere.util.getAbsoluteURL(_attachHeaders(_request)).replace(/^http/, "ws");
+                var url = _attachHeaders(_request);
+                return decodeURI(jQuery('<a href="' + url + '"/>')[0].href.replace(/^http/, "ws"));
             }
 
             /**
@@ -1001,7 +873,8 @@
 
             /**
              * Open SSE. <br>
-             * Automatically use fallback transport if SSE can't be opened.
+             * Automatically use fallback transport if SSE can't be
+             * opened.
              *
              * @private
              */
@@ -1011,117 +884,92 @@
 
                 var location = _buildSSEUrl(_request.url);
 
-                if (_request.logLevel === 'debug') {
-                    atmosphere.util.debug("Invoking executeSSE");
-                    atmosphere.util.debug("Using URL: " + location);
+                if (_request.logLevel == 'debug') {
+                    jQuery.atmosphere.debug("Invoking executeSSE");
+                    jQuery.atmosphere.debug("Using URL: " + location);
                 }
 
-                if (_request.enableProtocol && sseOpened) {
-                    var time = atmosphere.util.now() - _request.ctime;
-                    _request.lastTimestamp = Number(_request.stime) + Number(time);
+                if (sseOpened) {
+                    _open('re-opening', "sse", _request);
                 }
 
-                if (sseOpened && !_request.reconnect) {
+                if (!_request.reconnect) {
                     if (_sse != null) {
-                        _clearState();
+                        _sse.close();
                     }
                     return;
                 }
-
-                try {
-                    _sse = new EventSource(location, {
-                        withCredentials: _request.withCredentials
-                    });
-                } catch (e) {
-                    _onError(0, e);
-                    _reconnectWithFallbackTransport("SSE failed. Downgrading to fallback transport and resending");
-                    return;
-                }
+                _sse = new EventSource(location, {withCredentials: _request.withCredentials});
 
                 if (_request.connectTimeout > 0) {
-                    _request.id = setTimeout(function () {
+                    _request.id = setTimeout(function() {
                         if (!sseOpened) {
-                            _clearState();
+                            _sse.close();
                         }
                     }, _request.connectTimeout);
                 }
 
-                _sse.onopen = function (event) {
-                    _timeout(_request);
-                    if (_request.logLevel === 'debug') {
-                        atmosphere.util.debug("SSE successfully opened");
+                _sse.onopen = function(event) {
+                    if (_request.logLevel == 'debug') {
+                        jQuery.atmosphere.debug("SSE successfully opened");
                     }
 
-                    if (!_request.enableProtocol) {
-                        if (!sseOpened) {
-                            _open('opening', "sse", _request);
-                        } else {
-                            _open('re-opening', "sse", _request);
-                        }
+                    if (!sseOpened) {
+                        _open('opening', "sse", _request);
                     }
                     sseOpened = true;
 
-                    if (_request.method === 'POST') {
+                    if (_request.method == 'POST') {
                         _response.state = "messageReceived";
                         _sse.send(_request.data);
                     }
                 };
 
-                _sse.onmessage = function (message) {
-                    _timeout(_request);
-
-                    if (!_request.enableXDR && message.origin && message.origin !== window.location.protocol + "//" + window.location.host) {
-                        atmosphere.util.log(_request.logLevel, ["Origin was not " + window.location.protocol + "//" + window.location.host]);
+                _sse.onmessage = function(message) {
+                    if (message.origin != "http://" + window.location.host) {
+                        jQuery.atmosphere.log(_request.logLevel, ["Origin was not " + "http://" + window.location.host]);
                         return;
                     }
 
                     _response.state = 'messageReceived';
                     _response.status = 200;
 
-                    message = message.data;
+                    var message = message.data;
                     var skipCallbackInvocation = _trackMessageSize(message, _request, _response);
 
-                    // https://github.com/remy/polyfills/blob/master/EventSource.js
-                    // Since we polling.
-                    if (_sse.URL) {
-                        _sse.interval = 100;
-                        _sse.URL = _buildSSEUrl(_request.url);
+                    if (jQuery.trim(message).length == 0) {
+                        skipCallbackInvocation = true;
                     }
 
                     if (!skipCallbackInvocation) {
                         _invokeCallback();
                         _response.responseBody = '';
-                        _response.messages = [];
                     }
                 };
 
-                _sse.onerror = function (message) {
+                _sse.onerror = function(message) {
+
                     clearTimeout(_request.id);
-
-                    if (_response.state === 'closedByClient') return;
-
-                    _invokeClose(sseOpened);
-                    _clearState();
+                    _response.state = 'closed';
+                    _response.responseBody = "";
+                    _response.status = !sseOpened ? 501 : 200;
+                    _invokeCallback();
+                    _sse.close();
 
                     if (_abordingConnection) {
-                        atmosphere.util.log(_request.logLevel, ["SSE closed normally"]);
+                        jQuery.atmosphere.log(_request.logLevel, ["SSE closed normally"]);
                     } else if (!sseOpened) {
                         _reconnectWithFallbackTransport("SSE failed. Downgrading to fallback transport and resending");
-                    } else if (_request.reconnect && (_response.transport === 'sse')) {
-                        if (_requestCount++ < _request.maxReconnectOnClose) {
-                            _open('re-connecting', _request.transport, _request);
-                            if (_request.reconnectInterval > 0) {
-                                _request.id = setTimeout(function () {
-                                    _executeSSE(true);
-                                }, _request.reconnectInterval);
-                            } else {
+                    } else if (_request.reconnect && (_response.transport == 'sse')) {
+                        _request.requestCount = _requestCount;
+                        if (_requestCount++ < _request.maxRequest) {
+                            _request.id = setTimeout(function() {
                                 _executeSSE(true);
-                            }
+                            }, _request.reconnectInterval);
                             _response.responseBody = "";
-                            _response.messages = [];
                         } else {
-                            atmosphere.util.log(_request.logLevel, ["SSE reconnect maximum try reached " + _requestCount]);
-                            _onError(0, "maxReconnectOnClose reached");
+                            jQuery.atmosphere.log(_request.logLevel, ["SSE reconnect maximum try reached " + _request.requestCount]);
+                            _onError();
                         }
                     }
                 };
@@ -1129,7 +977,8 @@
 
             /**
              * Open web socket. <br>
-             * Automatically use fallback transport if web socket can't be opened.
+             * Automatically use fallback transport if web socket can't be
+             * opened.
              *
              * @private
              */
@@ -1137,128 +986,107 @@
 
                 _response.transport = "websocket";
 
-                if (_request.enableProtocol && webSocketOpened) {
-                    var time = atmosphere.util.now() - _request.ctime;
-                    _request.lastTimestamp = Number(_request.stime) + Number(time);
-                }
-
                 var location = _buildWebSocketUrl(_request.url);
-                if (_request.logLevel === 'debug') {
-                    atmosphere.util.debug("Invoking executeWebSocket");
-                    atmosphere.util.debug("Using URL: " + location);
+                var closed = false;
+
+                if (_request.logLevel == 'debug') {
+                    jQuery.atmosphere.debug("Invoking executeWebSocket");
+                    jQuery.atmosphere.debug("Using URL: " + location);
                 }
 
-                if (webSocketOpened && !_request.reconnect) {
+                if (webSocketOpened) {
+                    _open('re-opening', "websocket", _request);
+                }
+
+                if (!_request.reconnect) {
                     if (_websocket != null) {
-                        _clearState();
+                        _websocket.close();
                     }
                     return;
                 }
 
                 _websocket = _getWebSocket(location);
-                if (_request.webSocketBinaryType != null) {
-                    _websocket.binaryType = _request.webSocketBinaryType;
-                }
 
                 if (_request.connectTimeout > 0) {
-                    _request.id = setTimeout(function () {
+                    _request.id = setTimeout(function() {
                         if (!webSocketOpened) {
                             var _message = {
-                                code: 1002,
-                                reason: "",
-                                wasClean: false
+                                code : 1002,
+                                reason : "",
+                                wasClean : false
                             };
                             _websocket.onclose(_message);
                             // Close it anyway
                             try {
-                                _clearState();
+                                _websocket.close();
                             } catch (e) {
                             }
-                            return;
                         }
-
                     }, _request.connectTimeout);
                 }
 
-                _websocket.onopen = function (message) {
-                    _timeout(_request);
-
-                    if (_request.logLevel === 'debug') {
-                        atmosphere.util.debug("Websocket successfully opened");
+                _websocket.onopen = function(message) {
+                    if (_request.logLevel == 'debug') {
+                        jQuery.atmosphere.debug("Websocket successfully opened");
                     }
 
-                    if (!_request.enableProtocol) {
-                        if (!webSocketOpened) {
-                            _open('opening', "websocket", _request);
-                        } else {
-                            _open('re-opening', "websocket", _request);
-                        }
+                    if (!webSocketOpened) {
+                        _open('opening', "websocket", _request);
                     }
 
                     webSocketOpened = true;
-                    if (_websocket != null) {
-                        _websocket.webSocketOpened = webSocketOpened;
 
-                        if (_request.method === 'POST') {
-                            _response.state = "messageReceived";
-                            _websocket.send(_request.data);
-                        }
+                    if (_request.method == 'POST') {
+                        _response.state = "messageReceived";
+                        _websocket.send(_request.data);
                     }
                 };
 
-                _websocket.onmessage = function (message) {
-                    _timeout(_request);
+                _websocket.onmessage = function(message) {
+                    if (message.data.indexOf("parent.callback") != -1) {
+                        jQuery.atmosphere.log(_request.logLevel, ["parent.callback no longer supported with 0.8 version and up. Please upgrade"]);
+                    }
 
                     _response.state = 'messageReceived';
                     _response.status = 200;
 
-                    message = message.data;
-                    var isString = typeof (message) === 'string';
-                    if (isString) {
-                        var skipCallbackInvocation = _trackMessageSize(message, _request, _response);
-                        if (!skipCallbackInvocation) {
-                            _invokeCallback();
-                            _response.responseBody = '';
-                            _response.messages = [];
-                        }
-                    } else {
-                        if (!_handleProtocol(_request, message))
-                            return;
+                    var message = message.data;
+                    var skipCallbackInvocation = _trackMessageSize(message, _request, _response);
 
-                        _response.responseBody = message;
+                    if (!skipCallbackInvocation) {
                         _invokeCallback();
-                        _response.responseBody = null;
+                        _response.responseBody = '';
                     }
                 };
 
-                _websocket.onerror = function (message) {
-                    clearTimeout(_request.id);
+                _websocket.onerror = function(message) {
+                    clearTimeout(_request.id)
                 };
 
-                _websocket.onclose = function (message) {
-                    clearTimeout(_request.id);
-                    if (_response.state === 'closed')
-                        return;
+                _websocket.onclose = function(message) {
+                    if (closed) return
 
                     var reason = message.reason;
                     if (reason === "") {
                         switch (message.code) {
                             case 1000:
-                                reason = "Normal closure; the connection successfully completed whatever purpose for which " + "it was created.";
+                                reason = "Normal closure; the connection successfully completed whatever purpose for which " +
+                                    "it was created.";
                                 break;
                             case 1001:
-                                reason = "The endpoint is going away, either because of a server failure or because the "
-                                    + "browser is navigating away from the page that opened the connection.";
+                                reason = "The endpoint is going away, either because of a server failure or because the " +
+                                    "browser is navigating away from the page that opened the connection.";
                                 break;
                             case 1002:
                                 reason = "The endpoint is terminating the connection due to a protocol error.";
                                 break;
                             case 1003:
-                                reason = "The connection is being terminated because the endpoint received data of a type it "
-                                    + "cannot accept (for example, a text-only endpoint received binary data).";
+                                reason = "The connection is being terminated because the endpoint received data of a type it " +
+                                    "cannot accept (for example, a text-only endpoint received binary data).";
                                 break;
                             case 1004:
-                                reason = "The endpoint is terminating the connection because a data frame was received that " + "is too large.";
+                                reason = "The endpoint is terminating the connection because a data frame was received that " +
+                                    "is too large.";
                                 break;
                             case 1005:
                                 reason = "Unknown: no status code was provided even though one was expected.";
@@ -1269,157 +1097,82 @@
                         }
                     }
 
-                    if (_request.logLevel === 'warn') {
-                        atmosphere.util.warn("Websocket closed, reason: " + reason);
-                        atmosphere.util.warn("Websocket closed, wasClean: " + message.wasClean);
-                    }
-
-                    if (_response.state === 'closedByClient') {
-                        return;
-                    }
-
-                    _invokeClose(webSocketOpened);
+                    jQuery.atmosphere.warn("Websocket closed, reason: " + reason);
+                    jQuery.atmosphere.warn("Websocket closed, wasClean: " + message.wasClean);
 
                     _response.state = 'closed';
+                    _response.responseBody = "";
+                    _response.status = !webSocketOpened ? 501 : 200;
+                    _invokeCallback();
+                    clearTimeout(_request.id)
+
+                    closed = true;
 
                     if (_abordingConnection) {
-                        atmosphere.util.log(_request.logLevel, ["Websocket closed normally"]);
+                        jQuery.atmosphere.log(_request.logLevel, ["Websocket closed normally"]);
                     } else if (!webSocketOpened) {
                         _reconnectWithFallbackTransport("Websocket failed. Downgrading to Comet and resending");
 
-                    } else if (_request.reconnect && _response.transport === 'websocket') {
-                        _clearState();
-                        if (_requestCount++ < _request.maxReconnectOnClose) {
-                            _open('re-connecting', _request.transport, _request);
-                            if (_request.reconnectInterval > 0) {
-                                _request.id = setTimeout(function () {
-                                    _response.responseBody = "";
-                                    _response.messages = [];
-                                    _executeWebSocket(true);
-                                }, _request.reconnectInterval);
-                            } else {
-                                _response.responseBody = "";
-                                _response.messages = [];
-                                _executeWebSocket(true);
-                            }
+                    } else if (_request.reconnect && _response.transport == 'websocket') {
+                        if (_request.reconnect && _requestCount++ < _request.maxRequest) {
+                            _request.requestCount = _requestCount;
+                            _response.responseBody = "";
+                            _executeWebSocket(true);
                         } else {
-                            atmosphere.util.log(_request.logLevel, ["Websocket reconnect maximum try reached " + _request.requestCount]);
-                            if (_request.logLevel === 'warn') {
-                                atmosphere.util.warn("Websocket error, reason: " + message.reason);
-                            }
-                            _onError(0, "maxReconnectOnClose reached");
+                            jQuery.atmosphere.log(_request.logLevel, ["Websocket reconnect maximum try reached " + _request.requestCount]);
+                            jQuery.atmosphere.warn("Websocket error, reason: " + message.reason);
+                            _onError();
                         }
                     }
                 };
-
-                if (_websocket.url === undefined) {
-                    // Android 4.1 does not really support websockets and fails silently
-                    _websocket.onclose({
-                        reason: "Android 4.1 does not support websockets.",
-                        wasClean: false
-                    });
-                }
             }
 
-            function _handleProtocol(request, message) {
-                // The first messages is always the uuid.
-                var b = true;
-                if (atmosphere.util.trim(message).length !== 0 && request.enableProtocol && request.firstMessage) {
-                    request.firstMessage = false;
-                    var messages = message.split(request.messageDelimiter);
-                    var pos = messages.length === 2 ? 0 : 1;
-                    request.uuid = atmosphere.util.trim(messages[pos]);
-                    request.stime = atmosphere.util.trim(messages[pos + 1]);
-                    b = false;
-                    if (request.transport !== 'long-polling') {
-                        _triggerOpen(request);
-                    }
-                } else if (request.enableProtocol && request.firstMessage) {
-                    // In case we are getting some junk from IE
-                    b = false;
-                } else {
-                    _triggerOpen(request);
-                }
-                return b;
-            }
-
-            function _timeout(_request) {
-                clearTimeout(_request.id);
-                if (_request.timeout > 0 && _request.transport !== 'polling') {
-                    _request.id = setTimeout(function () {
-                        _onClientTimeout(_request);
-                        _disconnect();
-                        _clearState();
-                    }, _request.timeout);
-                }
-            }
-
-            function _onClientTimeout(_request) {
-                _response.state = 'closedByClient';
-                _response.responseBody = "";
-                _response.status = 408;
-                _response.messages = [];
-                _invokeCallback();
-            }
-
-            function _onError(code, reason) {
-                _clearState();
-                clearTimeout(_request.id);
+            function _onError() {
                 _response.state = 'error';
-                _response.reasonPhrase = reason;
                 _response.responseBody = "";
-                _response.status = code;
-                _response.messages = [];
+                _response.status = 500;
                 _invokeCallback();
             }
 
             /**
-             * Track received message and make sure callbacks/functions are only invoked when the complete message has been received.
+             * Track received message and make sure callbacks/functions are only invoked when the complete message
+             * has been received.
              *
              * @param message
              * @param request
              * @param response
              */
             function _trackMessageSize(message, request, response) {
-                if (!_handleProtocol(_request, message))
-                    return true;
-                if (message.length === 0)
-                    return true;
-
                 if (request.trackMessageLength) {
-                    // prepend partialMessage if any
-                    message = response.partialMessage + message;
 
-                    var messages = [];
-                    var messageStart = message.indexOf(request.messageDelimiter);
-                    while (messageStart !== -1) {
-                        var str = atmosphere.util.trim(message.substring(0, messageStart));
-                        var messageLength = +str;
-                        if (isNaN(messageLength))
-                            throw new Error('message length "' + str + '" is not a number');
-                        messageStart += request.messageDelimiter.length;
-                        if (messageStart + messageLength > message.length) {
-                            // message not complete, so there is no trailing messageDelimiter
-                            messageStart = -1;
-                        } else {
-                            // message complete, so add it
-                            messages.push(message.substring(messageStart, messageStart + messageLength));
-                            // remove consumed characters
-                            message = message.substring(messageStart + messageLength, message.length);
-                            messageStart = message.indexOf(request.messageDelimiter);
-                        }
+                    // If we have found partial message, prepend them.
+                    if (response.partialMessage.length != 0) {
+                        message = response.partialMessage + message;
                     }
 
-                    /* keep any remaining data */
-                    response.partialMessage = message;
+                    var messages = [];
+                    var messageLength = 0;
+                    var messageStart = message.indexOf(request.messageDelimiter);
+                    while (messageStart != -1) {
+                        messageLength = message.substring(messageLength, messageStart);
+                        message = message.substring(messageStart + request.messageDelimiter.length, message.length);
 
-                    if (messages.length !== 0) {
+                        if (message.length == 0 || message.length < messageLength) break;
+
+                        messageStart = message.indexOf(request.messageDelimiter);
+                        messages.push(message.substring(0, messageLength));
+                    }
+
+                    if (messages.length == 0 || (messageStart != -1 && message.length != 0 && messageLength != message.length)){
+                        response.partialMessage = messageLength + request.messageDelimiter + message ;
+                    } else {
+                        response.partialMessage = "";
+                    }
+
+                    if (messages.length != 0) {
                         response.responseBody = messages.join(request.messageDelimiter);
-                        response.messages = messages;
                         return false;
                     } else {
-                        response.responseBody = "";
-                        response.messages = [];
                         return true;
                     }
                 } else {
@@ -1435,84 +1188,72 @@
              * @private
              */
             function _reconnectWithFallbackTransport(errorMessage) {
-                atmosphere.util.log(_request.logLevel, [errorMessage]);
+                jQuery.atmosphere.log(_request.logLevel, [errorMessage]);
 
-                if (typeof (_request.onTransportFailure) !== 'undefined') {
+                if (typeof(_request.onTransportFailure) != 'undefined') {
                     _request.onTransportFailure(errorMessage, _request);
-                } else if (typeof (atmosphere.util.onTransportFailure) !== 'undefined') {
-                    atmosphere.util.onTransportFailure(errorMessage, _request);
+                } else if (typeof(jQuery.atmosphere.onTransportFailure) != 'undefined') {
+                    jQuery.atmosphere.onTransportFailure(errorMessage, _request);
                 }
 
                 _request.transport = _request.fallbackTransport;
-                var reconnectInterval = _request.connectTimeout === -1 ? 0 : _request.connectTimeout;
-                if (_request.reconnect && _request.transport !== 'none' || _request.transport == null) {
+                if (_request.reconnect && _request.transport != 'none' || _request.transport == null) {
                     _request.method = _request.fallbackMethod;
                     _response.transport = _request.fallbackTransport;
-                    _request.fallbackTransport = 'none';
-                    if (reconnectInterval > 0) {
-                        _request.id = setTimeout(function () {
-                            _execute();
-                        }, reconnectInterval);
-                    } else {
+                    _request.id = setTimeout(function() {
                         _execute();
-                    }
-                } else {
-                    _onError(500, "Unable to reconnect with fallback transport");
+                    }, _request.reconnectInterval);
                 }
             }
 
             /**
              * Get url from request and attach headers to it.
              *
-             * @param request {Object} request Request parameters, if undefined _request object will be used.
+             * @param request
+             *            {Object} request Request parameters, if
+             *            undefined _request object will be used.
              *
-             * @returns {Object} Request object, if undefined, _request object will be used.
+             * @returns {Object} Request object, if undefined,
+             *          _request object will be used.
              * @private
              */
-            function _attachHeaders(request, url) {
+            function _attachHeaders(request) {
                 var rq = _request;
-                if ((request != null) && (typeof (request) !== 'undefined')) {
+                if ((request != null) && (typeof(request) != 'undefined')) {
                     rq = request;
                 }
 
-                if (url == null) {
-                    url = rq.url;
-                }
+                var url = rq.url;
 
                 // If not enabled
-                if (!rq.attachHeadersAsQueryString)
-                    return url;
+                if (!rq.attachHeadersAsQueryString) return url;
 
                 // If already added
-                if (url.indexOf("X-Atmosphere-Framework") !== -1) {
+                if (url.indexOf("X-Atmosphere-Framework") != -1) {
                     return url;
                 }
 
-                url += (url.indexOf('?') !== -1) ? '&' : '?';
+                url += (url.indexOf('?') != -1) ? '&' : '?';
                 url += "X-Atmosphere-tracking-id=" + rq.uuid;
-                url += "&X-Atmosphere-Framework=" + version;
+                url += "&X-Atmosphere-Framework=" + jQuery.atmosphere.version;
                 url += "&X-Atmosphere-Transport=" + rq.transport;
 
                 if (rq.trackMessageLength) {
                     url += "&X-Atmosphere-TrackMessageSize=" + "true";
                 }
 
-                if (rq.lastTimestamp != null) {
+                if (rq.lastTimestamp != undefined) {
                     url += "&X-Cache-Date=" + rq.lastTimestamp;
                 } else {
                     url += "&X-Cache-Date=" + 0;
                 }
 
-                if (rq.contentType !== '') {
+                if (rq.contentType != '') {
                     url += "&Content-Type=" + rq.contentType;
                 }
 
-                if (rq.enableProtocol) {
-                    url += "&X-atmo-protocol=true";
-                }
-
-                atmosphere.util.each(rq.headers, function (name, value) {
-                    var h = atmosphere.util.isFunction(value) ? value.call(this, rq, request, _response) : value;
+                jQuery.each(rq.headers, function(name, value) {
+                    var h = jQuery.isFunction(value) ? value.call(this, rq, request, _response) : value;
                     if (h != null) {
                         url += "&" + encodeURIComponent(name) + "=" + encodeURIComponent(h);
                     }
@@ -1521,274 +1262,277 @@
                 return url;
             }
 
-            function _triggerOpen(rq) {
-                if (!rq.isOpen) {
-                    rq.isOpen = true;
-                    _open('opening', rq.transport, rq);
-                } else if (rq.isReopen) {
-                    rq.isReopen = false;
-                    _open('re-opening', rq.transport, rq);
+            /**
+             * Build ajax request. <br>
+             * Ajax Request is an XMLHttpRequest object, except for IE6 where
+             * ajax request is an ActiveXObject.
+             *
+             * @return {XMLHttpRequest, ActiveXObject} Ajax request.
+             * @private
+             */
+            function _buildAjaxRequest() {
+                var ajaxRequest;
+                if (jQuery.browser.msie) {
+                    var activexmodes = ["Msxml2.XMLHTTP", "Microsoft.XMLHTTP"];
+                    for (var i = 0; i < activexmodes.length; i++) {
+                        try {
+                            ajaxRequest = new ActiveXObject(activexmodes[i]);
+                        } catch(e) {
+                        }
+                    }
+
+                } else if (window.XMLHttpRequest) {
+                    ajaxRequest = new XMLHttpRequest();
                 }
+                return ajaxRequest;
             }
 
             /**
              * Execute ajax request. <br>
              *
-             * @param request {Object} request Request parameters, if undefined _request object will be used.
+             * @param request
+             *            {Object} request Request parameters, if
+             *            undefined _request object will be used.
              * @private
              */
             function _executeRequest(request) {
                 var rq = _request;
-                if ((request != null) || (typeof (request) !== 'undefined')) {
+                if ((request != null) || (typeof(request) != 'undefined')) {
                     rq = request;
                 }
 
-                rq.lastIndex = 0;
-                rq.readyState = 0;
-
                 // CORS fake using JSONP
-                if ((rq.transport === 'jsonp') || ((rq.enableXDR) && (atmosphere.util.checkCORSSupport()))) {
+                if ((rq.transport == 'jsonp') || ((rq.enableXDR) && (jQuery.atmosphere.checkCORSSupport()))) {
                     _jsonp(rq);
                     return;
                 }
 
-                if (atmosphere.util.browser.msie && atmosphere.util.browser.version < 10) {
-                    if ((rq.transport === 'streaming')) {
-                        if (rq.enableXDR && window.XDomainRequest) {
-                            _ieXDR(rq);
-                        } else {
-                            _ieStreaming(rq);
-                        }
-                        return;
-                    }
-
-                    if ((rq.enableXDR) && (window.XDomainRequest)) {
-                        _ieXDR(rq);
-                        return;
-                    }
+                if (rq.transport == 'ajax') {
+                    _ajax(request);
+                    return;
                 }
 
-                var reconnectF = function () {
-                    rq.lastIndex = 0;
-                    if (rq.reconnect && _requestCount++ < rq.maxReconnectOnClose) {
-                        _open('re-connecting', request.transport, request);
-                        _reconnect(ajaxRequest, rq, request.reconnectInterval);
-                    } else {
-                        _onError(0, "maxReconnectOnClose reached");
-                    }
-                };
+                if ((rq.transport == 'streaming') && (jQuery.browser.msie)) {
+                    rq.enableXDR && window.XDomainRequest ? _ieXDR(rq) : _ieStreaming(rq);
+                    return;
+                }
 
-                if (rq.force || (rq.reconnect && (rq.maxRequest === -1 || rq.requestCount++ < rq.maxRequest))) {
-                    rq.force = false;
+                if ((rq.enableXDR) && (window.XDomainRequest)) {
+                    _ieXDR(rq);
+                    return;
+                }
 
-                    var ajaxRequest = atmosphere.util.xhr();
-                    ajaxRequest.hasData = false;
-
+                if (rq.reconnect && rq.requestCount++ < rq.maxRequest) {
+                    var ajaxRequest = _buildAjaxRequest();
                     _doRequest(ajaxRequest, rq, true);
 
                     if (rq.suspend) {
                         _activeRequest = ajaxRequest;
                     }
 
-                    if (rq.transport !== 'polling') {
+                    if (rq.transport != 'polling') {
                         _response.transport = rq.transport;
+                    }
 
-                        ajaxRequest.onabort = function () {
-                            _invokeClose(true);
-                        };
-
-                        ajaxRequest.onerror = function () {
-                            _response.error = true;
+                    var error = false;
+                    if (!jQuery.browser.msie) {
+                        ajaxRequest.onerror = function() {
+                            error = true;
                             try {
                                 _response.status = XMLHttpRequest.status;
-                            } catch (e) {
-                                _response.status = 500;
+                            } catch(e) {
+                                _response.status = 404;
                             }
 
-                            if (!_response.status) {
-                                _response.status = 500;
-                            }
-                            _clearState();
-                            if (!_response.errorHandled) {
-                                reconnectF();
-                            }
+                            _response.state = "error";
+                            _reconnect(ajaxRequest, rq, true);
                         };
                     }
 
-                    ajaxRequest.onreadystatechange = function () {
+                    ajaxRequest.onreadystatechange = function() {
                         if (_abordingConnection) {
                             return;
                         }
 
-                        _response.error = null;
                         var skipCallbackInvocation = false;
                         var update = false;
 
-                        if (rq.transport === 'streaming' && rq.readyState > 2 && ajaxRequest.readyState === 4) {
-                            _clearState();
-                            reconnectF();
+                        // Remote server disconnected us, reconnect.
+                        if (rq.transport == 'streaming'
+                            && (rq.readyState > 2
+                            && ajaxRequest.readyState == 4)) {
+
+                            rq.readyState = 0;
+                            rq.lastIndex = 0;
+
+                            _reconnect(ajaxRequest, rq, true);
                             return;
                         }
 
                         rq.readyState = ajaxRequest.readyState;
 
-                        if (rq.transport === 'streaming' && ajaxRequest.readyState >= 3) {
-                            update = true;
-                        } else if (rq.transport === 'long-polling' && ajaxRequest.readyState === 4) {
-                            update = true;
-                        }
-                        _timeout(_request);
-
-                        if (rq.transport !== 'polling') {
-                            if ((!rq.enableProtocol || !request.firstMessage) && ajaxRequest.readyState === 2) {
-                                _triggerOpen(rq);
+                        if (ajaxRequest.readyState == 4) {
+                            if (jQuery.browser.msie) {
+                                update = true;
+                            } else if (rq.transport == 'streaming') {
+                                update = true;
+                            } else if (rq.transport == 'long-polling') {
+                                update = true;
+                                clearTimeout(rq.id);
                             }
-
-                            // MSIE 9 and lower status can be higher than 1000, Chrome can be 0
-                            var status = 200;
-                            if (ajaxRequest.readyState > 1) {
-                                status = ajaxRequest.status > 1000 ? 0 : ajaxRequest.status;
-                            }
-
-                            if (status >= 300 || status === 0) {
-                                // Prevent onerror callback to be called
-                                _response.errorHandled = true;
-                                _clearState();
-                                reconnectF();
-                                return;
-                            }
-                        } else if (ajaxRequest.readyState === 4) {
+                        } else if (!jQuery.browser.msie && ajaxRequest.readyState == 3 && ajaxRequest.status == 200 && rq.transport != 'long-polling') {
                             update = true;
+                        } else {
+                            clearTimeout(rq.id);
                         }
 
                         if (update) {
                             var responseText = ajaxRequest.responseText;
 
-                            if (atmosphere.util.trim(responseText).length === 0 && rq.transport === 'long-polling') {
-                                // For browser that aren't support onabort
-                                if (!ajaxRequest.hasData) {
-                                    reconnectF();
-                                } else {
-                                    ajaxRequest.hasData = false;
-                                }
-                                return;
-                            }
-                            ajaxRequest.hasData = true;
-
                             _readHeaders(ajaxRequest, _request);
 
-                            if (rq.transport === 'streaming') {
-                                if (!atmosphere.util.browser.opera) {
-                                    var message = responseText.substring(rq.lastIndex, responseText.length);
-                                    skipCallbackInvocation = _trackMessageSize(message, rq, _response);
+                            if (rq.transport == 'streaming') {
+                                var text = responseText.substring(rq.lastIndex, responseText.length);
+                                _response.isJunkEnded = true;
 
-                                    rq.lastIndex = responseText.length;
-                                    if (skipCallbackInvocation) {
-                                        return;
+                                //fix junk is comming in parts
+                                if (!_response.junkFull && (text.indexOf("<!-- Welcome to the Atmosphere Framework.") == -1 || text.indexOf("<!-- EOD -->") == -1)) {
+                                    return;
+                                }
+                                _response.junkFull = true;
+
+                                //if it's the start and we see the junk start
+                                //fix for reconnecting on chrome - junk is comming in parts
+                                if (rq.lastIndex == 0 && text.indexOf("<!-- Welcome to the Atmosphere Framework.") != -1 && text.indexOf("<!-- EOD -->") != -1) {
+                                    _response.isJunkEnded = false;
+                                }
+
+                                if (!_response.isJunkEnded) {
+                                    var endOfJunk = "<!-- EOD -->";
+                                    var endOfJunkLength = endOfJunk.length;
+                                    var junkEnd = text.indexOf(endOfJunk) + endOfJunkLength;
+
+                                    if (junkEnd > endOfJunkLength && junkEnd != text.length) {
+                                        _response.responseBody = text.substring(junkEnd);
+                                        //fix cached messages
+                                        skipCallbackInvocation = _trackMessageSize(_response.responseBody, rq, _response);
+                                    } else {
+                                        skipCallbackInvocation = true;
                                     }
                                 } else {
-                                    atmosphere.util.iterate(function () {
-                                        if (_response.status !== 500 && ajaxRequest.responseText.length > rq.lastIndex) {
+                                    var message = responseText.substring(rq.lastIndex, responseText.length);
+                                    skipCallbackInvocation = _trackMessageSize(message, rq, _response);
+                                }
+                                rq.lastIndex = responseText.length;
+
+                                if (jQuery.browser.opera) {
+                                    jQuery.atmosphere.iterate(function() {
+                                        if (ajaxRequest.responseText.length > rq.lastIndex) {
                                             try {
                                                 _response.status = ajaxRequest.status;
-                                                _response.headers = atmosphere.util.parseHeaders(ajaxRequest.getAllResponseHeaders());
+                                                _response.headers = parseHeaders(ajaxRequest.getAllResponseHeaders());
 
                                                 _readHeaders(ajaxRequest, _request);
-
-                                            } catch (e) {
+                                            }
+                                            catch(e) {
                                                 _response.status = 404;
                                             }
-                                            _timeout(_request);
-
                                             _response.state = "messageReceived";
-                                            var message = ajaxRequest.responseText.substring(rq.lastIndex);
+                                            _response.responseBody = ajaxRequest.responseText.substring(rq.lastIndex);
                                             rq.lastIndex = ajaxRequest.responseText.length;
 
-                                            skipCallbackInvocation = _trackMessageSize(message, rq, _response);
-                                            if (!skipCallbackInvocation) {
-                                                _invokeCallback();
+                                            _invokeCallback();
+                                            if ((rq.transport == 'streaming') && (ajaxRequest.responseText.length > rq.maxStreamingLength)) {
+                                                // Close and reopen connection on large data received
+                                                ajaxRequest.abort();
+                                                _doRequest(ajaxRequest, rq, true);
                                             }
-
-                                            _verifyStreamingLength(ajaxRequest, rq);
-                                        } else if (_response.status > 400) {
-                                            // Prevent replaying the last message.
-                                            rq.lastIndex = ajaxRequest.responseText.length;
-                                            return false;
                                         }
                                     }, 0);
                                 }
+
+                                if (skipCallbackInvocation) {
+                                    return;
+                                }
                             } else {
                                 skipCallbackInvocation = _trackMessageSize(responseText, rq, _response);
+                                rq.lastIndex = responseText.length;
                             }
 
                             try {
                                 _response.status = ajaxRequest.status;
-                                _response.headers = atmosphere.util.parseHeaders(ajaxRequest.getAllResponseHeaders());
+                                _response.headers = parseHeaders(ajaxRequest.getAllResponseHeaders());
 
                                 _readHeaders(ajaxRequest, rq);
-                            } catch (e) {
+                            } catch(e) {
                                 _response.status = 404;
                             }
 
                             if (rq.suspend) {
-                                _response.state = _response.status === 0 ? "closed" : "messageReceived";
+                                _response.state = _response.status == 0 ? "closed" : "messageReceived";
                             } else {
                                 _response.state = "messagePublished";
                             }
 
-                            var isAllowedToReconnect = request.transport !== 'streaming' && request.transport !== 'polling';
-                            if (isAllowedToReconnect && !rq.executeCallbackBeforeReconnect) {
-                                _reconnect(ajaxRequest, rq, 0);
+                            if (!rq.executeCallbackBeforeReconnect) {
+                                _reconnect(ajaxRequest, rq, false);
                             }
 
-                            if (_response.responseBody.length !== 0 && !skipCallbackInvocation)
-                                _invokeCallback();
+                            // For backward compatibility with Atmosphere < 0.8
+                            if (_response.responseBody.indexOf("parent.callback") != -1) {
+                                jQuery.atmosphere.log(rq.logLevel, ["parent.callback no longer supported with 0.8 version and up. Please upgrade"]);
+                            }
+                            _invokeCallback();
 
-                            if (isAllowedToReconnect && rq.executeCallbackBeforeReconnect) {
-                                _reconnect(ajaxRequest, rq, 0);
+                            if (rq.executeCallbackBeforeReconnect) {
+                                _reconnect(ajaxRequest, rq, false);
                             }
 
-                            _verifyStreamingLength(ajaxRequest, rq);
+                            if ((rq.transport == 'streaming') && (responseText.length > rq.maxStreamingLength)) {
+                                // Close and reopen connection on large data received
+                                ajaxRequest.abort();
+                                _doRequest(ajaxRequest, rq, true);
+                            }
                         }
                     };
+                    ajaxRequest.send(rq.data);
 
-                    try {
-                        ajaxRequest.send(rq.data);
-                        _subscribed = true;
-                    } catch (e) {
-                        atmosphere.util.log(rq.logLevel, ["Unable to connect to " + rq.url]);
+                    if (rq.suspend) {
+                        rq.id = setTimeout(function() {
+                            if (_subscribed) {
+                                ajaxRequest.abort();
+                                _subscribe(rq);
+                                _execute();
+                            }
+                        }, rq.timeout);
                     }
+                    _subscribed = true;
 
                 } else {
-                    if (rq.logLevel === 'debug') {
-                        atmosphere.util.log(rq.logLevel, ["Max re-connection reached."]);
+                    if (rq.logLevel == 'debug') {
+                        jQuery.atmosphere.log(rq.logLevel, ["Max re-connection reached."]);
                     }
-                    _onError(0, "maxRequest reached");
+                    _onError();
                 }
             }
 
             /**
              * Do ajax request.
-             *
              * @param ajaxRequest Ajax request.
              * @param request Request parameters.
              * @param create If ajax request has to be open.
              */
             function _doRequest(ajaxRequest, request, create) {
                 // Prevent Android to cache request
-                var url = request.url;
-                if (request.dispatchUrl != null && request.method === 'POST') {
-                    url += request.dispatchUrl;
-                }
-                url = _attachHeaders(request, url);
-                url = atmosphere.util.prepareURL(url);
+                var url = _attachHeaders(request);
+                url = jQuery.atmosphere.prepareURL(url);
 
                 if (create) {
-                    ajaxRequest.open(request.method, url, request.async);
-                    if (request.connectTimeout > 0) {
-                        request.id = setTimeout(function () {
-                            if (request.requestCount === 0) {
-                                _clearState();
+                    ajaxRequest.open(request.method, url, true);
+                    if (request.connectTimeout > -1) {
+                        request.id = setTimeout(function() {
+                            if (request.requestCount == 0) {
+                                ajaxRequest.abort();
                                 _prepareCallback("Connect timeout", "closed", 200, request.transport);
                             }
                         }, request.connectTimeout);
@@ -1802,84 +1546,80 @@
                 }
 
                 if (!_request.dropAtmosphereHeaders) {
-                    ajaxRequest.setRequestHeader("X-Atmosphere-Framework", atmosphere.util.version);
+                    ajaxRequest.setRequestHeader("X-Atmosphere-Framework", jQuery.atmosphere.version);
                     ajaxRequest.setRequestHeader("X-Atmosphere-Transport", request.transport);
-                    if (request.lastTimestamp != null) {
+                    if (request.lastTimestamp != undefined) {
                         ajaxRequest.setRequestHeader("X-Cache-Date", request.lastTimestamp);
                     } else {
                         ajaxRequest.setRequestHeader("X-Cache-Date", 0);
                     }
 
                     if (request.trackMessageLength) {
-                        ajaxRequest.setRequestHeader("X-Atmosphere-TrackMessageSize", "true");
+                        ajaxRequest.setRequestHeader("X-Atmosphere-TrackMessageSize", "true")
+                    }
+
+                    if (request.contentType != '') {
+                        ajaxRequest.setRequestHeader("Content-Type", request.contentType);
                     }
                     ajaxRequest.setRequestHeader("X-Atmosphere-tracking-id", request.uuid);
                 }
 
-                if (request.contentType !== '') {
-                    ajaxRequest.setRequestHeader("Content-Type", request.contentType);
-                }
-
-                atmosphere.util.each(request.headers, function (name, value) {
-                    var h = atmosphere.util.isFunction(value) ? value.call(this, ajaxRequest, request, create, _response) : value;
+                jQuery.each(request.headers, function(name, value) {
+                    var h = jQuery.isFunction(value) ? value.call(this, ajaxRequest, request, create, _response) : value;
                     if (h != null) {
                         ajaxRequest.setRequestHeader(name, h);
                     }
                 });
             }
 
-            function _reconnect(ajaxRequest, request, reconnectInterval) {
-                if (request.reconnect || (request.suspend && _subscribed)) {
-                    var status = 0;
-                    if (ajaxRequest && ajaxRequest.readyState !== 0) {
-                        status = ajaxRequest.status > 1000 ? 0 : ajaxRequest.status;
-                    }
-                    _response.status = status === 0 ? 204 : status;
-                    _response.reason = status === 0 ? "Server resumed the connection or down." : "OK";
-
-                    clearTimeout(request.id);
-                    if (reconnectInterval > 0) {
-                        request.id = setTimeout(function () {
-                            _executeRequest(request);
-                        }, reconnectInterval);
-                    } else {
-                        _executeRequest(request);
+            function _reconnect(ajaxRequest, request, force) {
+                if (force || (request.suspend && ajaxRequest.status == 200 && request.transport != 'streaming' && _subscribed)) {
+                    if (request.reconnect) {
+                        _open('re-opening', request.transport, request);
+                        request.id = setTimeout(function() {
+                            _executeRequest();
+                        }, request.reconnectInterval);
                     }
                 }
             }
 
-            function _tryingToReconnect(response) {
-                response.state = 're-connecting';
-                _invokeFunction(response);
-            }
-
+            // From jquery-stream, which is APL2 licensed as well.
             function _ieXDR(request) {
-                if (request.transport !== "polling") {
-                    _ieStream = _configureXDR(request);
-                    _ieStream.open();
-                } else {
-                    _configureXDR(request).open();
-                }
+                _ieStream = _configureXDR(request);
+                _ieStream.open();
             }
 
+            // From jquery-stream
             function _configureXDR(request) {
                 var rq = _request;
-                if ((request != null) && (typeof (request) !== 'undefined')) {
+                if ((request != null) && (typeof(request) != 'undefined')) {
                     rq = request;
                 }
 
                 var transport = rq.transport;
                 var lastIndex = 0;
-                var xdr = new window.XDomainRequest();
+                var xdrCallback = function (xdr) {
+                    var responseBody = xdr.responseText;
+                    var isJunkEnded = false;
 
-                var reconnect = function () {
-                    if (rq.transport === "long-polling" && (rq.reconnect && (rq.maxRequest === -1 || rq.requestCount++ < rq.maxRequest))) {
-                        xdr.status = 200;
-                        _ieXDR(rq);
+                    if (responseBody.indexOf("<!-- Welcome to the Atmosphere Framework.") != -1) {
+                        isJunkEnded = true;
                     }
+
+                    if (isJunkEnded) {
+                        var endOfJunk = "<!-- EOD -->";
+                        var endOfJunkLenght = endOfJunk.length;
+                        var junkEnd = responseBody.indexOf(endOfJunk);
+                        if (junkEnd !== -1) {
+                            responseBody = responseBody.substring(junkEnd + endOfJunkLenght + lastIndex);
+                            lastIndex += responseBody.length;
+                        }
+                    }
+                    _prepareCallback(responseBody, "messageReceived", 200, transport);
                 };
 
-                var rewriteURL = rq.rewriteURL || function (url) {
+                var xdr = new window.XDomainRequest();
+                var rewriteURL = rq.rewriteURL || function(url) {
                     // Maintaining session by rewriting URL
                     // http://stackoverflow.com/questions/6453779/maintaining-session-by-rewriting-url
                     var match = /(?:^|;\s*)(JSESSIONID|PHPSESSID)=([^;]*)/.exec(document.cookie);
@@ -1894,92 +1634,70 @@
                 };
 
                 // Handles open and message event
-                xdr.onprogress = function () {
-                    handle(xdr);
+                xdr.onprogress = function() {
+                    xdrCallback(xdr);
+                    rq.lastMessage = xdr.responseText;
                 };
                 // Handles error event
-                xdr.onerror = function () {
+                xdr.onerror = function() {
                     // If the server doesn't send anything back to XDR will fail with polling
-                    if (rq.transport !== 'polling') {
-                        _clearState();
-                        if (_requestCount++ < rq.maxReconnectOnClose) {
-                            if (rq.reconnectInterval > 0) {
-                                rq.id = setTimeout(function () {
-                                    _open('re-connecting', request.transport, request);
-                                    _ieXDR(rq);
-                                }, rq.reconnectInterval);
-                            } else {
-                                _open('re-connecting', request.transport, request);
-                                _ieXDR(rq);
-                            }
-                        } else {
-                            _onError(0, "maxReconnectOnClose reached");
-                        }
+                    if (rq.transport != 'polling') {
+                        _prepareCallback(xdr.responseText, "error", 500, transport);
                     }
                 };
-
                 // Handles close event
                 xdr.onload = function () {
-                };
+                    // XDomain loop forever on itself without this.
+                    // TODO: Clearly I need to come with something better than that solution
+                    if (rq.lastMessage == xdr.responseText) return;
 
-                var handle = function (xdr) {
-                    clearTimeout(rq.id);
-                    var message = xdr.responseText;
-
-                    message = message.substring(lastIndex);
-                    lastIndex += message.length;
-
-                    if (transport !== 'polling') {
-                        _timeout(rq);
-
-                        var skipCallbackInvocation = _trackMessageSize(message, rq, _response);
-
-                        if (transport === 'long-polling' && atmosphere.util.trim(message).length === 0)
-                            return;
-
-                        if (rq.executeCallbackBeforeReconnect) {
-                            reconnect();
-                        }
-
-                        if (!skipCallbackInvocation) {
-                            _prepareCallback(_response.responseBody, "messageReceived", 200, transport);
-                        }
-
-                        if (!rq.executeCallbackBeforeReconnect) {
-                            reconnect();
-                        }
+                    if (rq.executeCallbackBeforeReconnect) {
+                        xdrCallback(xdr);
                     }
+
+                    // window.XDomainRequest() cannot read response headers, hence X-Atmosphere-Tracking-ID
+                    // and X-Cache-Date won't work.
+                    // _readHeaders()
+
+                    if (rq.transport == "long-polling" && rq.requestCount++ < rq.maxRequest) {
+                        xdr.status = 200;
+                        _reconnect(xdr, rq, false);
+                    }
+
+                    if (!rq.executeCallbackBeforeReconnect) {
+                        xdrCallback(xdr);
+                    }
+                    rq.lastMessage = xdr.responseText;
                 };
 
                 return {
-                    open: function () {
-                        var url = rq.url;
-                        if (rq.dispatchUrl != null) {
-                            url += rq.dispatchUrl;
+                    open: function() {
+                        if (rq.method == 'POST') {
+                            rq.attachHeadersAsQueryString = true;
                         }
-                        url = _attachHeaders(rq, url);
+                        var url = _attachHeaders(rq);
+                        if (rq.method == 'POST') {
+                            url += "&X-Atmosphere-Post-Body=" + encodeURIComponent(rq.data);
+                        }
                         xdr.open(rq.method, rewriteURL(url));
-                        if (rq.method === 'GET') {
-                            xdr.send();
-                        } else {
-                            xdr.send(rq.data);
-                        }
-
-                        if (rq.connectTimeout > 0) {
-                            rq.id = setTimeout(function () {
-                                if (rq.requestCount === 0) {
-                                    _clearState();
+                        xdr.send();
+                        if (rq.connectTimeout > -1) {
+                            rq.id = setTimeout(function() {
+                                if (rq.requestCount == 0) {
+                                    xdr.abort();
                                     _prepareCallback("Connect timeout", "closed", 200, rq.transport);
                                 }
                             }, rq.connectTimeout);
                         }
                     },
-                    close: function () {
+                    close: function() {
                         xdr.abort();
+                        _prepareCallback(xdr.responseText, "closed", 200, transport);
                     }
                 };
             }
 
+            // From jquery-stream, which is APL2 licensed as well.
             function _ieStreaming(request) {
                 _ieStream = _configureIE(request);
                 _ieStream.open();
@@ -1987,7 +1705,7 @@
 
             function _configureIE(request) {
                 var rq = _request;
-                if ((request != null) && (typeof (request) !== 'undefined')) {
+                if ((request != null) && (typeof(request) != 'undefined')) {
                     rq = request;
                 }
 
@@ -1998,25 +1716,22 @@
                 doc.close();
 
                 var url = rq.url;
-                if (rq.dispatchUrl != null) {
-                    url += rq.dispatchUrl;
-                }
 
-                if (rq.transport !== 'polling') {
+                if (rq.transport != 'polling') {
                     _response.transport = rq.transport;
                 }
 
                 return {
-                    open: function () {
+                    open: function() {
                         var iframe = doc.createElement("iframe");
 
                         url = _attachHeaders(rq);
-                        if (rq.data !== '') {
+                        if (rq.data != '') {
                             url += "&X-Atmosphere-Post-Body=" + encodeURIComponent(rq.data);
                         }
 
                         // Finally attach a timestamp to prevent Android and IE caching.
-                        url = atmosphere.util.prepareURL(url);
+                        url = jQuery.atmosphere.prepareURL(url);
 
                         iframe.src = url;
                         doc.body.appendChild(iframe);
@@ -2024,14 +1739,24 @@
                         // For the server to respond in a consistent format regardless of user agent, we polls response text
                         var cdoc = iframe.contentDocument || iframe.contentWindow.document;
 
-                        stop = atmosphere.util.iterate(function () {
+                        stop = jQuery.atmosphere.iterate(function() {
                             try {
                                 if (!cdoc.firstChild) {
                                     return;
                                 }
 
+                                // Detects connection failure
+                                if (cdoc.readyState === "complete") {
+                                    try {
+                                        jQuery.noop(cdoc.fileSize);
+                                    } catch(e) {
+                                        _prepareCallback("Connection Failure", "error", 500, rq.transport);
+                                        return false;
+                                    }
+                                }
+
                                 var res = cdoc.body ? cdoc.body.lastChild : cdoc;
-                                var readResponse = function () {
+                                var readResponse = function() {
                                     // Clones the element not to disturb the original one
                                     var clone = res.cloneNode(true);
 
@@ -2040,14 +1765,24 @@
                                     clone.appendChild(cdoc.createTextNode("."));
 
                                     var text = clone.innerText;
+                                    var isJunkEnded = true;
 
-                                    text = text.substring(0, text.length - 1);
-                                    return text;
+                                    if (text.indexOf("<!-- Welcome to the Atmosphere Framework.") == -1) {
+                                        isJunkEnded = false;
+                                    }
 
+                                    if (isJunkEnded) {
+                                        var endOfJunk = "<!-- EOD -->";
+                                        var endOfJunkLength = endOfJunk.length;
+                                        var junkEnd = text.indexOf(endOfJunk) + endOfJunkLength;
+
+                                        text = text.substring(junkEnd);
+                                    }
+                                    return text.substring(0, text.length - 1);
                                 };
 
-                                // To support text/html content type
-                                if (!cdoc.body || !cdoc.body.firstChild || cdoc.body.firstChild.nodeName.toLowerCase() !== "pre") {
+                                //To support text/html content type
+                                if (!jQuery.nodeName(res, "pre")) {
                                     // Injects a plaintext element which renders text without interpreting the HTML and cannot be stopped
                                     // it is deprecated in HTML5, but still works
                                     var head = cdoc.head || cdoc.getElementsByTagName("head")[0] || cdoc.documentElement || cdoc;
@@ -2062,74 +1797,43 @@
                                     res = cdoc.body.lastChild;
                                 }
 
-                                if (rq.closed) {
-                                    rq.isReopen = true;
-                                }
+                                // Handles open event
+                                _prepareCallback(readResponse(), "opening", 200, rq.transport);
 
                                 // Handles message and close event
-                                stop = atmosphere.util.iterate(function () {
+                                stop = jQuery.atmosphere.iterate(function() {
                                     var text = readResponse();
                                     if (text.length > rq.lastIndex) {
-                                        _timeout(_request);
-
                                         _response.status = 200;
-                                        _response.error = null;
 
                                         // Empties response every time that it is handled
                                         res.innerText = "";
-                                        var skipCallbackInvocation = _trackMessageSize(text, rq, _response);
-                                        if (skipCallbackInvocation) {
-                                            return "";
-                                        }
+                                        _prepareCallback(text, "messageReceived", 200, rq.transport);
 
-                                        _prepareCallback(_response.responseBody, "messageReceived", 200, rq.transport);
+                                        rq.lastIndex = 0;
                                     }
 
-                                    rq.lastIndex = 0;
-
                                     if (cdoc.readyState === "complete") {
-                                        _invokeClose(true);
-                                        _open('re-connecting', rq.transport, rq);
-                                        if (rq.reconnectInterval > 0) {
-                                            rq.id = setTimeout(function () {
-                                                _ieStreaming(rq);
-                                            }, rq.reconnectInterval);
-                                        } else {
-                                            _ieStreaming(rq);
-                                        }
+                                        _prepareCallback("", "re-opening", 200, rq.transport);
+                                        _ieStreaming(rq);
                                         return false;
                                     }
                                 }, null);
 
                                 return false;
                             } catch (err) {
-                                _response.error = true;
-                                _open('re-connecting', rq.transport, rq);
-                                if (_requestCount++ < rq.maxReconnectOnClose) {
-                                    if (rq.reconnectInterval > 0) {
-                                        rq.id = setTimeout(function () {
-                                            _ieStreaming(rq);
-                                        }, rq.reconnectInterval);
-                                    } else {
-                                        _ieStreaming(rq);
-                                    }
-                                } else {
-                                    _onError(0, "maxReconnectOnClose reached");
-                                }
-                                doc.execCommand("Stop");
-                                doc.close();
-                                return false;
+                                jQuery.atmosphere.error(err);
                             }
                         });
                     },
 
-                    close: function () {
+                    close: function() {
                         if (stop) {
                             stop();
                         }
 
                         doc.execCommand("Stop");
-                        _invokeClose(true);
+                        _prepareCallback("", "closed", 200, rq.transport);
                     }
                 };
             }
@@ -2138,7 +1842,8 @@
              * Send message. <br>
              * Will be automatically dispatch to other connected.
              *
-             * @param {Object, string} Message to send.
+             * @param {Object,
+                *            string} Message to send.
              * @private
              */
             function _push(message) {
@@ -2153,24 +1858,7 @@
                     _pushJsonp(message);
                 } else if (_websocket != null) {
                     _pushWebSocket(message);
-                } else {
-                    _onError(0, "No suspended connection available");
-                    atmosphere.util.error("No suspended connection available. Make sure atmosphere.subscribe has been called and request.onOpen invoked before invoking this method");
                 }
-            }
-
-            function _pushOnClose(message, rq) {
-                if (!rq) {
-                    rq = _getPushRequest(message);
-                }
-                rq.transport = "polling";
-                rq.method = "GET";
-                rq.async = false;
-                rq.withCredentials = false;
-                rq.reconnect = false;
-                rq.force = true;
-                rq.suspend = false;
-                _executeRequest(rq);
             }
 
             function _pushLocal(message) {
@@ -2179,27 +1867,25 @@
 
             function _intraPush(message) {
                 // IE 9 will crash if not.
-                if (message.length === 0)
-                    return;
+                if (message.length == 0) return;
 
                 try {
                     if (_localStorageService) {
                         _localStorageService.localSend(message);
-                    } else if (_storageService) {
-                        _storageService.signal("localMessage", atmosphere.util.stringifyJSON({
-                            id: guid,
-                            event: message
-                        }));
+                    } else {
+                        _storageService.signal("localMessage",  jQuery.stringifyJSON({id: guid , event: message}));
                     }
                 } catch (err) {
-                    atmosphere.util.error(err);
+                    jQuery.atmosphere.error(err);
                 }
             }
 
             /**
-             * Send a message using currently opened ajax request (using http-streaming or long-polling). <br>
+             * Send a message using currently opened ajax request (using
+             * http-streaming or long-polling). <br>
              *
-             * @param {string, Object} Message to send. This is an object, string message is saved in data member.
+             * @param {string, Object} Message to send. This is an object, string
+             *            message is saved in data member.
              * @private
              */
             function _pushAjaxMessage(message) {
@@ -2208,13 +1894,15 @@
             }
 
             /**
-             * Send a message using currently opened ie streaming (using http-streaming or long-polling). <br>
+             * Send a message using currently opened ie streaming (using
+             * http-streaming or long-polling). <br>
              *
-             * @param {string, Object} Message to send. This is an object, string message is saved in data member.
+             * @param {string, Object} Message to send. This is an object, string
+             *            message is saved in data member.
              * @private
              */
             function _pushIE(message) {
-                if (_request.enableXDR && atmosphere.util.checkCORSSupport()) {
+                if (_request.enableXDR && jQuery.atmosphere.checkCORSSupport()) {
                     var rq = _getPushRequest(message);
                     // Do not reconnect since we are pushing.
                     rq.reconnect = false;
@@ -2227,7 +1915,8 @@
             /**
              * Send a message using jsonp transport. <br>
              *
-             * @param {string, Object} Message to send. This is an object, string message is saved in data member.
+             * @param {string, Object} Message to send. This is an object, string
+             *            message is saved in data member.
              * @private
              */
             function _pushJsonp(message) {
@@ -2236,14 +1925,15 @@
 
             function _getStringMessage(message) {
                 var msg = message;
-                if (typeof (msg) === 'object') {
+                if (typeof(msg) == 'object') {
                     msg = message.data;
                 }
                 return msg;
             }
 
             /**
-             * Build request use to push message using method 'POST' <br>. Transport is defined as 'polling' and 'suspend' is set to false.
+             * Build request use to push message using method 'POST' <br>.
+             * Transport is defined as 'polling' and 'suspend' is set to false.
              *
              * @return {Object} Request object use to push message.
              * @private
@@ -2256,30 +1946,23 @@
                     timeout: 60000,
                     method: 'POST',
                     url: _request.url,
-                    contentType: _request.contentType,
-                    headers: _request.headers,
-                    reconnect: true,
+                    contentType : _request.contentType,
+                    headers: {},
+                    reconnect : true,
                     callback: null,
-                    data: msg,
-                    suspend: false,
-                    maxRequest: -1,
-                    logLevel: 'info',
-                    requestCount: 0,
-                    withCredentials: _request.withCredentials,
-                    async: _request.async,
+                    data : msg,
+                    suspend : false,
+                    maxRequest : 60,
+                    logLevel : 'info',
+                    requestCount : 0,
                     transport: 'polling',
-                    isOpen: true,
                     attachHeadersAsQueryString: true,
                     enableXDR: _request.enableXDR,
-                    uuid: _request.uuid,
-                    dispatchUrl: _request.dispatchUrl,
-                    enableProtocol: false,
-                    messageDelimiter: '|',
-                    maxReconnectOnClose: _request.maxReconnectOnClose
+                    uuid : _request.uuid
                 };
 
-                if (typeof (message) === 'object') {
-                    rq = atmosphere.util.extend(rq, message);
+                if (typeof(message) == 'object') {
+                    rq = jQuery.extend(rq, message);
                 }
 
                 return rq;
@@ -2288,48 +1971,52 @@
             /**
              * Send a message using currently opened websocket. <br>
              *
+             * @param {string, Object}
+                *            Message to send. This is an object, string message is
+             *            saved in data member.
              */
             function _pushWebSocket(message) {
                 var msg = _getStringMessage(message);
                 var data;
                 try {
-                    if (_request.dispatchUrl != null) {
-                        data = _request.webSocketPathDelimiter + _request.dispatchUrl + _request.webSocketPathDelimiter + msg;
+                    if (_request.webSocketUrl != null) {
+                        data = _request.webSocketPathDelimiter
+                            + _request.webSocketUrl
+                            + _request.webSocketPathDelimiter
+                            + msg;
                     } else {
                         data = msg;
-                    }
-
-                    if (!_websocket.webSocketOpened) {
-                        atmosphere.util.error("WebSocket not connected.");
-                        return;
                     }
 
                     _websocket.send(data);
 
                 } catch (e) {
-                    _websocket.onclose = function (message) {
+                    _websocket.onclose = function(message) {
                     };
-                    _clearState();
+                    _websocket.close();
 
-                    _reconnectWithFallbackTransport("Websocket failed. Downgrading to Comet and resending " + message);
+                    _reconnectWithFallbackTransport("Websocket failed. Downgrading to Comet and resending " + data);
                     _pushAjaxMessage(message);
                 }
             }
 
             function _localMessage(message) {
-                var m = atmosphere.util.parseJSON(message);
-                if (m.id !== guid) {
-                    if (typeof (_request.onLocalMessage) !== 'undefined') {
+                var m = jQuery.parseJSON(message);
+                if (m.id != guid) {
+                    if (typeof(_request.onLocalMessage) != 'undefined') {
                         _request.onLocalMessage(m.event);
-                    } else if (typeof (atmosphere.util.onLocalMessage) !== 'undefined') {
-                        atmosphere.util.onLocalMessage(m.event);
+                    } else if (typeof(jQuery.atmosphere.onLocalMessage) != 'undefined') {
+                        jQuery.atmosphere.onLocalMessage(m.event);
                     }
                 }
             }
 
             function _prepareCallback(messageBody, state, errorCode, transport) {
 
-                _response.responseBody = messageBody;
+                if (state == "messageReceived") {
+                    if (_trackMessageSize(messageBody, _request, _response)) return;
+                }
+
                 _response.transport = transport;
                 _response.status = errorCode;
                 _response.state = state;
@@ -2338,26 +2025,22 @@
             }
 
             function _readHeaders(xdr, request) {
-                if (!request.readResponsesHeaders && !request.enableProtocol) {
-                    request.lastTimestamp = atmosphere.util.now();
-                    request.uuid = guid;
-                    return;
-                }
+                if (!request.readResponsesHeaders) return;
 
                 try {
                     var tempDate = xdr.getResponseHeader('X-Cache-Date');
-                    if (tempDate && tempDate != null && tempDate.length > 0) {
+                    if (tempDate != null && tempDate != undefined) {
                         request.lastTimestamp = tempDate.split(" ").pop();
                     }
 
-                    var tempUUID = xdr.getResponseHeader('X-Atmosphere-tracking-id');
-                    if (tempUUID && tempUUID != null) {
+                    tempUUID = xdr.getResponseHeader('X-Atmosphere-tracking-id');
+                    if (tempUUID != null && tempUUID != undefined) {
                         request.uuid = tempUUID.split(" ").pop();
                     }
 
                     // HOTFIX for firefox bug: https://bugzilla.mozilla.org/show_bug.cgi?id=608735
                     if (request.headers) {
-                        atmosphere.util.each(_request.headers, function (name) {
+                        jQuery.each(_request.headers, function (name) {
                             var v = xdr.getResponseHeader(name);
                             if (v) {
                                 _response.headers[name] = v;
@@ -2371,61 +2054,30 @@
             function _invokeFunction(response) {
                 _f(response, _request);
                 // Global
-                _f(response, atmosphere.util);
+                _f(response, jQuery.atmosphere);
             }
 
             function _f(response, f) {
                 switch (response.state) {
-                    case "messageReceived":
-                        _requestCount = 0;
-                        if (typeof (f.onMessage) !== 'undefined')
-                            f.onMessage(response);
+                    case "messageReceived" :
+                        if (typeof(f.onMessage) != 'undefined') f.onMessage(response);
                         break;
-                    case "error":
-                        if (typeof (f.onError) !== 'undefined')
-                            f.onError(response);
+                    case "error" :
+                        if (typeof(f.onError) != 'undefined') f.onError(response);
                         break;
-                    case "opening":
-                        if (typeof (f.onOpen) !== 'undefined')
-                            f.onOpen(response);
+                    case "opening" :
+                        if (typeof(f.onOpen) != 'undefined') f.onOpen(response);
                         break;
-                    case "messagePublished":
-                        if (typeof (f.onMessagePublished) !== 'undefined')
-                            f.onMessagePublished(response);
+                    case "messagePublished" :
+                        if (typeof(f.onMessagePublished) != 'undefined') f.onMessagePublished(response);
                         break;
-                    case "re-connecting":
-                        if (typeof (f.onReconnect) !== 'undefined')
-                            f.onReconnect(_request, response);
+                    case "re-opening" :
+                        if (typeof(f.onReconnect) != 'undefined') f.onReconnect(_request, response);
                         break;
-                    case "closedByClient":
-                        if (typeof (f.onClientTimeout) !== 'undefined')
-                           f.onClientTimeout(_request);
+                    case "unsubscribe" :
+                    case "closed" :
+                        if (typeof(f.onClose) != 'undefined') f.onClose(response);
                         break;
-                    case "re-opening":
-                        if (typeof (f.onReopen) !== 'undefined')
-                            f.onReopen(_request, response);
-                        break;
-                    case "fail-to-reconnect":
-                        if (typeof (f.onFailureToReconnect) !== 'undefined')
-                            f.onFailureToReconnect(_request, response);
-                        break;
-                    case "unsubscribe":
-                    case "closed":
-                        var closed = typeof (_request.closed) !== 'undefined' ? _request.closed : false;
-                        if (typeof (f.onClose) !== 'undefined' && !closed)
-                            f.onClose(response);
-                        _request.closed = true;
-                        break;
-                }
-            }
-
-            function _invokeClose(wasOpen) {
-                if (_response.state !== 'closed') {
-                    _response.state = 'closed';
-                    _response.responseBody = "";
-                    _response.messages = [];
-                    _response.status = !wasOpen ? 501 : 200;
-                    _invokeCallback();
                 }
             }
 
@@ -2443,493 +2095,216 @@
                     _localSocketF(_response.responseBody);
                 }
 
-                _request.reconnect = _request.mrequest;
-
-                var isString = typeof (_response.responseBody) === 'string';
-                var messages = (isString && _request.trackMessageLength) ? (_response.messages.length > 0 ? _response.messages : ['']) : new Array(
-                    _response.responseBody);
+                var messages = typeof(_response.responseBody) == 'string' ? _response.responseBody.split(_request.messageDelimiter) : new Array(_response.responseBody);
                 for (var i = 0; i < messages.length; i++) {
 
-                    if (messages.length > 1 && messages[i].length === 0) {
+                    if (messages.length > 1 && messages[i].length == 0) {
                         continue;
                     }
-                    _response.responseBody = (isString) ? atmosphere.util.trim(messages[i]) : messages[i];
+                    _response.responseBody = jQuery.trim(messages[i]);
 
-                    if (_localStorageService == null && _localSocketF != null) {
-                        _localSocketF(_response.responseBody);
-                    }
-
-                    if (_response.responseBody.length === 0 && _response.state === "messageReceived") {
-                        continue;
+                    // Ugly see issue 400.
+                    if (_response.responseBody.length == 0 && _response.transport == 'streaming' && _response.state == "messageReceived") {
+                        var ua = navigator.userAgent.toLowerCase();
+                        var isAndroid = ua.indexOf("android") > -1;
+                        if (isAndroid) {
+                            continue;
+                        }
                     }
 
                     _invokeFunction(_response);
 
                     // Invoke global callbacks
-                    if (callbacks.length > 0) {
-                        if (_request.logLevel === 'debug') {
-                            atmosphere.util.debug("Invoking " + callbacks.length + " global callbacks: " + _response.state);
+                    if (jQuery.atmosphere.callbacks.length > 0) {
+                        if (_request.logLevel == 'debug') {
+                            jQuery.atmosphere.debug("Invoking " + jQuery.atmosphere.callbacks.length + " global callbacks: " + _response.state);
                         }
                         try {
-                            atmosphere.util.each(callbacks, call);
+                            jQuery.each(jQuery.atmosphere.callbacks, call);
                         } catch (e) {
-                            atmosphere.util.log(_request.logLevel, ["Callback exception" + e]);
+                            jQuery.atmosphere.log(_request.logLevel, ["Callback exception" + e]);
                         }
                     }
 
                     // Invoke request callback
-                    if (typeof (_request.callback) === 'function') {
-                        if (_request.logLevel === 'debug') {
-                            atmosphere.util.debug("Invoking request callbacks");
+                    if (typeof(_request.callback) == 'function') {
+                        if (_request.logLevel == 'debug') {
+                            jQuery.atmosphere.debug("Invoking request callbacks");
                         }
                         try {
                             _request.callback(_response);
                         } catch (e) {
-                            atmosphere.util.log(_request.logLevel, ["Callback exception" + e]);
+                            jQuery.atmosphere.log(_request.logLevel, ["Callback exception" + e]);
                         }
                     }
                 }
+
             }
 
-            this.subscribe = function (options) {
+            /**
+             * Close request.
+             *
+             * @private
+             */
+            function _close() {
+                _request.reconnect = false;
+                _response.request = _request;
+                _subscribed = false;
+                _abordingConnection = true;
+                _response.state = 'unsubscribe';
+                _response.responseBody = "";
+                _response.status = 408;
+                _invokeCallback();
+
+                _clearState();
+
+                // Stop sharing a connection
+                if (_storageService != null) {
+                    // Clears trace timer
+                    clearInterval(_traceTimer);
+                    // Removes the trace
+                    document.cookie = encodeURIComponent("atmosphere-" + _request.url) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+                    // The heir is the parent unless unloading
+                    _storageService.signal("close", {reason: "", heir: !_abordingConnection ? guid : (_storageService.get("children") || [])[0]});
+                    _storageService.close();
+                }
+                if (_localStorageService != null) {
+                    _localStorageService.close();
+                }
+            }
+
+            function _clearState() {
+                if (_ieStream != null) {
+                    _ieStream.close();
+                    _ieStream = null;
+                }
+                if (_jqxhr != null) {
+                    _jqxhr.abort();
+                    _jqxhr = null;
+                }
+                if (_activeRequest != null) {
+                    _activeRequest.abort();
+                    _activeRequest = null;
+                }
+                if (_websocket != null) {
+                    _websocket.close();
+                    _websocket = null;
+                }
+                if (_sse != null) {
+                    _sse.close();
+                    _sse = null;
+                }
+            }
+
+            this.subscribe = function(options) {
                 _subscribe(options);
                 _execute();
             };
 
-            this.execute = function () {
+            this.execute = function() {
                 _execute();
             };
 
-            this.close = function () {
+            this.invokeCallback = function() {
+                _invokeCallback();
+            };
+
+            this.close = function() {
                 _close();
             };
 
-            this.disconnect = function () {
-                _disconnect();
-            };
-
-            this.getUrl = function () {
+            this.getUrl = function() {
                 return _request.url;
             };
 
-            this.push = function (message, dispatchUrl) {
-                if (dispatchUrl != null) {
-                    var originalDispatchUrl = _request.dispatchUrl;
-                    _request.dispatchUrl = dispatchUrl;
-                    _push(message);
-                    _request.dispatchUrl = originalDispatchUrl;
-                } else {
-                    _push(message);
-                }
+            this.push = function(message) {
+                _push(message);
             };
 
-            this.getUUID = function () {
-                return _request.uuid;
-            };
-
-            this.pushLocal = function (message) {
+            this.pushLocal = function(message) {
                 _intraPush(message);
             };
 
-            this.enableProtocol = function (message) {
-                return _request.enableProtocol;
-            };
-
-            this.request = _request;
             this.response = _response;
-        }
-    };
+        },
 
-    atmosphere.subscribe = function (url, callback, request) {
-        if (typeof (callback) === 'function') {
-            atmosphere.addCallback(callback);
-        }
-
-        if (typeof (url) !== "string") {
-            request = url;
-        } else {
-            request.url = url;
-        }
-
-        var rq = new atmosphere.AtmosphereRequest(request);
-        rq.execute();
-
-        requests[requests.length] = rq;
-        return rq;
-    };
-
-    atmosphere.unsubscribe = function () {
-        if (requests.length > 0) {
-            var requestsClone = [].concat(requests);
-            for (var i = 0; i < requestsClone.length; i++) {
-                var rq = requestsClone[i];
-                rq.close();
-                clearTimeout(rq.response.request.id);
+        subscribe: function(url, callback, request) {
+            if (typeof(callback) == 'function') {
+                jQuery.atmosphere.addCallback(callback);
             }
-        }
-        requests = [];
-        callbacks = [];
-    };
 
-    atmosphere.unsubscribeUrl = function (url) {
-        var idx = -1;
-        if (requests.length > 0) {
-            for (var i = 0; i < requests.length; i++) {
-                var rq = requests[i];
-
-                // Suppose you can subscribe once to an url
-                if (rq.getUrl() === url) {
-                    rq.close();
-                    clearTimeout(rq.response.request.id);
-                    idx = i;
-                    break;
-                }
-            }
-        }
-        if (idx >= 0) {
-            requests.splice(idx, 1);
-        }
-    };
-
-    atmosphere.addCallback = function (func) {
-        if (atmosphere.util.inArray(func, callbacks) === -1) {
-            callbacks.push(func);
-        }
-    };
-
-    atmosphere.removeCallback = function (func) {
-        var index = atmosphere.util.inArray(func, callbacks);
-        if (index !== -1) {
-            callbacks.splice(index, 1);
-        }
-    };
-
-    atmosphere.util = {
-        browser: {},
-
-        parseHeaders: function (headerString) {
-            var match, rheaders = /^(.*?):[ \t]*([^\r\n]*)\r?$/mg, headers = {};
-            while (match = rheaders.exec(headerString)) {
-                headers[match[1]] = match[2];
-            }
-            return headers;
-        },
-
-        now: function () {
-            return new Date().getTime();
-        },
-
-        isArray: function (array) {
-            return Object.prototype.toString.call(array) === "[object Array]";
-        },
-
-        inArray: function (elem, array) {
-            if (!Array.prototype.indexOf) {
-                var len = array.length;
-                for (var i = 0; i < len; ++i) {
-                    if (array[i] === elem) {
-                        return i;
-                    }
-                }
-                return -1;
-            }
-            return array.indexOf(elem);
-        },
-
-        isBinary: function (data) {
-            var string = Object.prototype.toString.call(data);
-            return string === "[object Blob]" || string === "[object ArrayBuffer]";
-        },
-
-        isFunction: function (fn) {
-            return Object.prototype.toString.call(fn) === "[object Function]";
-        },
-
-        getAbsoluteURL: function (url) {
-            var div = document.createElement("div");
-
-            // Uses an innerHTML property to obtain an absolute URL
-            div.innerHTML = '<a href="' + url + '"/>';
-
-            // encodeURI and decodeURI are needed to normalize URL between IE and non-IE,
-            // since IE doesn't encode the href property value and return it - http://jsfiddle.net/Yq9M8/1/
-            return encodeURI(decodeURI(div.firstChild.href));
-        },
-
-        prepareURL: function (url) {
-            // Attaches a time stamp to prevent caching
-            var ts = atmosphere.util.now();
-            var ret = url.replace(/([?&])_=[^&]*/, "$1_=" + ts);
-
-            return ret + (ret === url ? (/\?/.test(url) ? "&" : "?") + "_=" + ts : "");
-        },
-
-        trim: function (str) {
-            if (!String.prototype.trim) {
-                return str.toString().replace(/(?:(?:^|\n)\s+|\s+(?:$|\n))/g, "").replace(/\s+/g, " ");
+            if (typeof(url) != "string") {
+                request = url;
             } else {
-                return str.toString().trim();
+                request.url = url;
+            }
+
+            var rq = new jQuery.atmosphere.AtmosphereRequest(request);
+            rq.execute();
+
+            jQuery.atmosphere.requests[jQuery.atmosphere.requests.length] = rq;
+            return rq;
+        },
+
+        addCallback: function(func) {
+            if (jQuery.inArray(func, jQuery.atmosphere.callbacks) == -1) {
+                jQuery.atmosphere.callbacks.push(func);
             }
         },
 
-        param: function (params) {
-            var prefix, s = [];
-
-            function add(key, value) {
-                value = atmosphere.util.isFunction(value) ? value() : (value == null ? "" : value);
-                s.push(encodeURIComponent(key) + "=" + encodeURIComponent(value));
+        removeCallback: function(func) {
+            var index = jQuery.inArray(func, jQuery.atmosphere.callbacks);
+            if (index != -1) {
+                jQuery.atmosphere.callbacks.splice(index, 1);
             }
+        },
 
-            function buildParams(prefix, obj) {
-                var name;
-
-                if (atmosphere.util.isArray(obj)) {
-                    atmosphere.util.each(obj, function (i, v) {
-                        if (/\[\]$/.test(prefix)) {
-                            add(prefix, v);
-                        } else {
-                            buildParams(prefix + "[" + (typeof v === "object" ? i : "") + "]", v);
-                        }
-                    });
-                } else if (Object.prototype.toString.call(obj) === "[object Object]") {
-                    for (name in obj) {
-                        buildParams(prefix + "[" + name + "]", obj[name]);
-                    }
-                } else {
-                    add(prefix, obj);
+        unsubscribe : function() {
+            if (jQuery.atmosphere.requests.length > 0) {
+                for (var i = 0; i < jQuery.atmosphere.requests.length; i++) {
+                    jQuery.atmosphere.requests[i].close();
+                    clearTimeout(jQuery.atmosphere.requests[i].id);
                 }
             }
-
-            for (prefix in params) {
-                buildParams(prefix, params[prefix]);
-            }
-
-            return s.join("&").replace(/%20/g, "+");
+            jQuery.atmosphere.requests = [];
+            jQuery.atmosphere.callbacks = [];
         },
 
-        storage: !!(window.localStorage && window.StorageEvent),
+        unsubscribeUrl: function(url) {
+            var idx = -1;
+            if (jQuery.atmosphere.requests.length > 0) {
+                for (var i = 0; i < jQuery.atmosphere.requests.length; i++) {
+                    var rq = jQuery.atmosphere.requests[i];
 
-        iterate: function (fn, interval) {
-            var timeoutId;
-
-            // Though the interval is 0 for real-time application, there is a delay between setTimeout calls
-            // For detail, see https://developer.mozilla.org/en/window.setTimeout#Minimum_delay_and_timeout_nesting
-            interval = interval || 0;
-
-            (function loop() {
-                timeoutId = setTimeout(function () {
-                    if (fn() === false) {
-                        return;
-                    }
-
-                    loop();
-                }, interval);
-            })();
-
-            return function () {
-                clearTimeout(timeoutId);
-            };
-        },
-
-        each: function (obj, callback, args) {
-            var value, i = 0, length = obj.length, isArray = atmosphere.util.isArray(obj);
-
-            if (args) {
-                if (isArray) {
-                    for (; i < length; i++) {
-                        value = callback.apply(obj[i], args);
-
-                        if (value === false) {
-                            break;
-                        }
-                    }
-                } else {
-                    for (i in obj) {
-                        value = callback.apply(obj[i], args);
-
-                        if (value === false) {
-                            break;
-                        }
-                    }
-                }
-
-                // A special, fast, case for the most common use of each
-            } else {
-                if (isArray) {
-                    for (; i < length; i++) {
-                        value = callback.call(obj[i], i, obj[i]);
-
-                        if (value === false) {
-                            break;
-                        }
-                    }
-                } else {
-                    for (i in obj) {
-                        value = callback.call(obj[i], i, obj[i]);
-
-                        if (value === false) {
-                            break;
-                        }
+                    // Suppose you can subscribe once to an url
+                    if (rq.getUrl() == url) {
+                        rq.close();
+                        clearTimeout(rq.id);
+                        idx = i;
+                        break;
                     }
                 }
             }
-
-            return obj;
-        },
-
-        extend: function (target) {
-            var i, options, name;
-
-            for (i = 1; i < arguments.length; i++) {
-                if ((options = arguments[i]) != null) {
-                    for (name in options) {
-                        target[name] = options[name];
-                    }
-                }
-            }
-
-            return target;
-        },
-        on: function (elem, type, fn) {
-            if (elem.addEventListener) {
-                elem.addEventListener(type, fn, false);
-            } else if (elem.attachEvent) {
-                elem.attachEvent("on" + type, fn);
-            }
-        },
-        off: function (elem, type, fn) {
-            if (elem.removeEventListener) {
-                elem.removeEventListener(type, fn, false);
-            } else if (elem.detachEvent) {
-                elem.detachEvent("on" + type, fn);
+            if (idx >= 0) {
+                jQuery.atmosphere.requests.splice(idx, 1);
             }
         },
 
-        log: function (level, args) {
-            if (window.console) {
-                var logger = window.console[level];
-                if (typeof logger === 'function') {
-                    logger.apply(window.console, args);
-                }
+        publish: function(request) {
+            if (typeof(request.callback) == 'function') {
+                jQuery.atmosphere.addCallback(callback);
             }
+            request.transport = "polling";
+
+            var rq = new jQuery.atmosphere.AtmosphereRequest(request);
+            jQuery.atmosphere.requests[jQuery.atmosphere.requests.length] = rq;
+            return rq;
         },
 
-        warn: function () {
-            atmosphere.util.log('warn', arguments);
-        },
-
-        info: function () {
-            atmosphere.util.log('info', arguments);
-        },
-
-        debug: function () {
-            atmosphere.util.log('debug', arguments);
-        },
-
-        error: function () {
-            atmosphere.util.log('error', arguments);
-        },
-        xhr: function () {
-            try {
-                return new window.XMLHttpRequest();
-            } catch (e1) {
-                try {
-                    return new window.ActiveXObject("Microsoft.XMLHTTP");
-                } catch (e2) {
-                }
-            }
-        },
-        parseJSON: function (data) {
-            return !data ? null : window.JSON && window.JSON.parse ? window.JSON.parse(data) : new Function("return " + data)();
-        },
-        // http://github.com/flowersinthesand/stringifyJSON
-        stringifyJSON: function (value) {
-            var escapable = /[\\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g, meta = {
-                '\b': '\\b',
-                '\t': '\\t',
-                '\n': '\\n',
-                '\f': '\\f',
-                '\r': '\\r',
-                '"': '\\"',
-                '\\': '\\\\'
-            };
-
-            function quote(string) {
-                return '"' + string.replace(escapable, function (a) {
-                    var c = meta[a];
-                    return typeof c === "string" ? c : "\\u" + ("0000" + a.charCodeAt(0).toString(16)).slice(-4);
-                }) + '"';
-            }
-
-            function f(n) {
-                return n < 10 ? "0" + n : n;
-            }
-
-            return window.JSON && window.JSON.stringify ? window.JSON.stringify(value) : (function str(key, holder) {
-                var i, v, len, partial, value = holder[key], type = typeof value;
-
-                if (value && typeof value === "object" && typeof value.toJSON === "function") {
-                    value = value.toJSON(key);
-                    type = typeof value;
-                }
-
-                switch (type) {
-                    case "string":
-                        return quote(value);
-                    case "number":
-                        return isFinite(value) ? String(value) : "null";
-                    case "boolean":
-                        return String(value);
-                    case "object":
-                        if (!value) {
-                            return "null";
-                        }
-
-                        switch (Object.prototype.toString.call(value)) {
-                            case "[object Date]":
-                                return isFinite(value.valueOf()) ? '"' + value.getUTCFullYear() + "-" + f(value.getUTCMonth() + 1) + "-"
-                                    + f(value.getUTCDate()) + "T" + f(value.getUTCHours()) + ":" + f(value.getUTCMinutes()) + ":" + f(value.getUTCSeconds())
-                                    + "Z" + '"' : "null";
-                            case "[object Array]":
-                                len = value.length;
-                                partial = [];
-                                for (i = 0; i < len; i++) {
-                                    partial.push(str(i, value) || "null");
-                                }
-
-                                return "[" + partial.join(",") + "]";
-                            default:
-                                partial = [];
-                                for (i in value) {
-                                    if (hasOwn.call(value, i)) {
-                                        v = str(i, value);
-                                        if (v) {
-                                            partial.push(quote(i) + ":" + v);
-                                        }
-                                    }
-                                }
-
-                                return "{" + partial.join(",") + "}";
-                        }
-                }
-            })("", {
-                "": value
-            });
-        },
-
-        checkCORSSupport: function () {
-            if (atmosphere.util.browser.msie && !window.XDomainRequest) {
+        checkCORSSupport : function() {
+            if (jQuery.browser.msie && !window.XDomainRequest) {
                 return true;
-            } else if (atmosphere.util.browser.opera && atmosphere.util.browser.version < 12.0) {
-                return true;
-            }
-
-            // KreaTV 4.1 -> 4.6
-            else if (atmosphere.util.trim(navigator.userAgent).slice(0, 16) === "KreaTVWebKit/531") {
-                return true;
-            }
-            // KreaTV 3.8
-            else if (atmosphere.util.trim(navigator.userAgent).slice(-7).toLowerCase() === "Kreatel") {
+            } else if (jQuery.browser.opera && jQuery.browser.version < 12.0) {
                 return true;
             }
 
@@ -2940,44 +2315,180 @@
                 return true;
             }
             return false;
+        },
+
+        S4 : function() {
+            return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+        },
+
+        guid : function() {
+            return (jQuery.atmosphere.S4() + jQuery.atmosphere.S4() + "-" + jQuery.atmosphere.S4() + "-" + jQuery.atmosphere.S4() + "-" + jQuery.atmosphere.S4() + "-" + jQuery.atmosphere.S4() + jQuery.atmosphere.S4() + jQuery.atmosphere.S4());
+        },
+
+        // From jQuery-Stream
+        prepareURL: function(url) {
+            // Attaches a time stamp to prevent caching
+            var ts = jQuery.now();
+            var ret = url.replace(/([?&])_=[^&]*/, "$1_=" + ts);
+
+            return ret + (ret === url ? (/\?/.test(url) ? "&" : "?") + "_=" + ts : "");
+        },
+
+        // From jQuery-Stream
+        param : function(data) {
+            return jQuery.param(data, jQuery.ajaxSettings.traditional);
+        },
+
+        supportStorage : function() {
+            var storage = window.localStorage;
+            if (storage) {
+                try {
+                    storage.setItem("t", "t");
+                    storage.removeItem("t");
+                    // The storage event of Internet Explorer and Firefox 3 works strangely
+                    return window.StorageEvent && !jQuery.browser.msie && !(jQuery.browser.mozilla && jQuery.browser.version.split(".")[0] === "1");
+                } catch (e) {
+                }
+            }
+
+            return false;
+        },
+
+        iterate : function (fn, interval) {
+            var timeoutId;
+
+            // Though the interval is 0 for real-time application, there is a delay between setTimeout calls
+            // For detail, see https://developer.mozilla.org/en/window.setTimeout#Minimum_delay_and_timeout_nesting
+            interval = interval || 0;
+
+            (function loop() {
+                timeoutId = setTimeout(function() {
+                    if (fn() === false) {
+                        return;
+                    }
+
+                    loop();
+                }, interval);
+            })();
+
+            return function() {
+                clearTimeout(timeoutId);
+            };
+        },
+
+        log: function (level, args) {
+            if (window.console) {
+                var logger = window.console[level];
+                if (typeof logger == 'function') {
+                    logger.apply(window.console, args);
+                }
+            }
+        },
+
+        warn: function() {
+            jQuery.atmosphere.log('warn', arguments);
+        },
+
+        info :function() {
+            jQuery.atmosphere.log('info', arguments);
+        },
+
+        debug: function() {
+            jQuery.atmosphere.log('debug', arguments);
+        },
+
+        error: function() {
+            jQuery.atmosphere.log('error', arguments);
         }
     };
+}();
 
-    guid = atmosphere.util.now();
+/*
+ * jQuery stringifyJSON
+ * http://github.com/flowersinthesand/jquery-stringifyJSON
+ *
+ * Copyright 2011, Donghwan Kim
+ * Licensed under the Apache License, Version 2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
+ */
+// This plugin is heavily based on Douglas Crockford's reference implementation
+(function(jQuery) {
 
-    // Browser sniffing
-    (function () {
-        var ua = navigator.userAgent.toLowerCase(),
-            match = /(chrome)[ \/]([\w.]+)/.exec(ua) ||
-                /(webkit)[ \/]([\w.]+)/.exec(ua) ||
-                /(opera)(?:.*version|)[ \/]([\w.]+)/.exec(ua) ||
-                /(msie) ([\w.]+)/.exec(ua) ||
-                ua.indexOf("compatible") < 0 && /(mozilla)(?:.*? rv:([\w.]+)|)/.exec(ua) ||
-                [];
+    var escapable = /[\\\"\x00-\x1f\x7f-\x9f\u00ad\u0600-\u0604\u070f\u17b4\u17b5\u200c-\u200f\u2028-\u202f\u2060-\u206f\ufeff\ufff0-\uffff]/g, meta = {
+        '\b' : '\\b',
+        '\t' : '\\t',
+        '\n' : '\\n',
+        '\f' : '\\f',
+        '\r' : '\\r',
+        '"' : '\\"',
+        '\\' : '\\\\'
+    };
 
-        atmosphere.util.browser[match[1] || ""] = true;
-        atmosphere.util.browser.version = match[2] || "0";
+    function quote(string) {
+        return '"' + string.replace(escapable, function(a) {
+            var c = meta[a];
+            return typeof c === "string" ? c : "\\u" + ("0000" + a.charCodeAt(0).toString(16)).slice(-4);
+        }) + '"';
+    }
 
-        // The storage event of Internet Explorer and Firefox 3 works strangely
-        if (atmosphere.util.browser.msie || (atmosphere.util.browser.mozilla && atmosphere.util.browser.version.split(".")[0] === "1")) {
-            atmosphere.util.storage = false;
+    function f(n) {
+        return n < 10 ? "0" + n : n;
+    }
+
+    function str(key, holder) {
+        var i, v, len, partial, value = holder[key], type = typeof value;
+
+        if (value && typeof value === "object" && typeof value.toJSON === "function") {
+            value = value.toJSON(key);
+            type = typeof value;
         }
-    })();
 
-    atmosphere.util.on(window, "unload", function (event) {
-        atmosphere.unsubscribe();
-    });
+        switch (type) {
+            case "string":
+                return quote(value);
+            case "number":
+                return isFinite(value) ? String(value) : "null";
+            case "boolean":
+                return String(value);
+            case "object":
+                if (!value) {
+                    return "null";
+                }
 
-    // Pressing ESC key in Firefox kills the connection
-    atmosphere.util.on(window, "keypress", function (event) {
-        if (event.which === 27) {
-            event.preventDefault();
+                switch (Object.prototype.toString.call(value)) {
+                    case "[object Date]":
+                        return isFinite(value.valueOf()) ? '"' + value.getUTCFullYear() + "-" + f(value.getUTCMonth() + 1) + "-" + f(value.getUTCDate()) + "T" +
+                            f(value.getUTCHours()) + ":" + f(value.getUTCMinutes()) + ":" + f(value.getUTCSeconds()) + "Z" + '"' : "null";
+                    case "[object Array]":
+                        len = value.length;
+                        partial = [];
+                        for (i = 0; i < len; i++) {
+                            partial.push(str(i, value) || "null");
+                        }
+
+                        return "[" + partial.join(",") + "]";
+                    default:
+                        partial = [];
+                        for (i in value) {
+                            if (Object.prototype.hasOwnProperty.call(value, i)) {
+                                v = str(i, value);
+                                if (v) {
+                                    partial.push(quote(i) + ":" + v);
+                                }
+                            }
+                        }
+
+                        return "{" + partial.join(",") + "}";
+                }
         }
-    });
+    }
 
-    atmosphere.util.on(window, "offline", function () {
-        atmosphere.unsubscribe();
-    });
-    window.atmosphere = atmosphere;
-})();
-/* jshint eqnull:true, noarg:true, noempty:true, eqeqeq:true, evil:true, laxbreak:true, undef:true, browser:true, indent:false, maxerr:50 */
+    jQuery.stringifyJSON = function(value) {
+        if (window.JSON && window.JSON.stringify) {
+            return window.JSON.stringify(value);
+        }
+
+        return str("", {"": value});
+    };
+
+}(jQuery));
