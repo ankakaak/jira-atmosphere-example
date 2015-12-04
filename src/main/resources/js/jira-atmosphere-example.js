@@ -19,22 +19,24 @@ var logged = false;
 var isOn = false;
 var socket = AJS.$.atmosphere;
 var subSocket;
-var transport = 'long-polling';
+var transport = 'websocket';
+var fallbackTransport = 'long-polling';
 
 // We are now ready to cut the request
 var request = {
     url: '/jira/plugins/servlet/chat',
     contentType: "application/json",
     logLevel: 'debug',
-    transport: transport,
+    transport: fallbackTransport,
+    //fallbackTransport: fallbackTransport,
     trackMessageLength: true,
     reconnectInterval: 5000
 };
 
 request.onOpen = function (response) {
     console.log('On open');
-    content.html(AJS.$('<p>', {text: 'Atmosphere connected using ' + response.transport}));
-    input.removeAttr('disabled').focus();
+    content.append(AJS.$('<p>', {text: 'Atmosphere connected using ' + response.transport}));
+    AJS.$('#input').removeAttr('disabled').focus();
     AJS.$('.statusA').text('Choose name:');
     transport = response.transport;
 
@@ -44,7 +46,7 @@ request.onOpen = function (response) {
 };
 
 request.onClientTimeout = function (r) {
-    content.html(AJS.$('<p>', {text: 'Client closed the connection after a timeout. Reconnecting in ' + request.reconnectInterval}));
+    content.append(AJS.$('<p>', {text: 'Client closed the connection after a timeout. Reconnecting in ' + request.reconnectInterval}));
     subSocket.push(AJS.$.atmosphere.util.stringifyJSON({
         author: author,
         message: 'is inactive and closed the connection. Will reconnect in ' + request.reconnectInterval
@@ -57,14 +59,14 @@ request.onClientTimeout = function (r) {
 
 request.onReopen = function (response) {
     input.removeAttr('disabled').focus();
-    content.html(AJS.$('<p>', {text: 'Atmosphere re-connected using ' + response.transport}));
+    content.append(AJS.$('<p>', {text: 'Atmosphere re-connected using ' + response.transport}));
 };
 
 // For demonstration of how you can customize the fallbackTransport using the onTransportFailure function
 request.onTransportFailure = function (errorMsg, request) {
     AJS.$.atmosphere.util.info(errorMsg);
     request.fallbackTransport = "long-polling";
-    header.html(AJS.$('<h3>', {text: 'Atmosphere Chat. Default transport is WebSocket, fallback is ' + request.fallbackTransport}));
+    header.append(AJS.$('<h3>', {text: 'Atmosphere Chat. Default transport is WebSocket, fallback is ' + request.fallbackTransport}));
 };
 
 request.onMessage = function (response) {
@@ -105,13 +107,13 @@ request.onMessage = function (response) {
 request.onClose = function (response) {
     content.html(AJS.$('<p>', {text: 'Server closed the connection after a timeout'}));
     if (subSocket) {
-        subSocket.push(AJS.$.atmosphere.util.stringifyJSON({author: author, message: 'disconnecting'}));
+        subSocket.push(JSON.stringify({author: author, message: 'disconnecting'}));
     }
     input.attr('disabled', 'disabled');
 };
 
 request.onError = function (response) {
-    content.html(AJS.$('<p>', {
+    content.append(AJS.$('<p>', {
         text: 'Sorry, but there\'s some problem with your '
         + 'socket or the server is down'
     }));
@@ -119,28 +121,11 @@ request.onError = function (response) {
 };
 
 request.onReconnect = function (request, response) {
-    content.html(AJS.$('<p>', {text: 'Connection lost, trying to reconnect. Trying to reconnect ' + request.reconnectInterval}));
+    content.append(AJS.$('<p>', {text: 'Connection lost, trying to reconnect. Trying to reconnect ' + request.reconnectInterval}));
     input.attr('disabled', 'disabled');
 };
 
-input.keydown(function (e) {
-    if (e.keyCode === 13) {
-        var msg = AJS.$(this).val();
 
-        // First message is always the author's name
-        if (author == null) {
-            author = msg;
-        }
-
-        subSocket.push(AJS.$.atmosphere.util.stringifyJSON({author: author, message: msg}));
-        AJS.$(this).val('');
-
-        input.attr('disabled', 'disabled');
-        if (myName === false) {
-            myName = msg;
-        }
-    }
-});
 
 //myName = 'Ank'
 //subSocket.push(AJS.$.atmosphere.util.stringifyJSON({author: 'Ank', message: 'YoYo!'}));
@@ -161,5 +146,25 @@ function addMessage(author, message, color, datetime) {
 }
 
 function init() {
+
+    AJS.$('#input').keydown(function (e) {
+        if (e.keyCode === 13) {
+            var msg = AJS.$(this).val();
+
+            // First message is always the author's name
+            if (author == null) {
+                author = msg;
+            }
+
+            subSocket.push(JSON.stringify({author: author, message: msg}));
+            AJS.$(this).val('');
+
+            AJS.$('#input').attr('disabled', 'disabled');
+            if (myName === false) {
+                myName = msg;
+            }
+        }
+    });
+
     subSocket = socket.subscribe(request);
 }

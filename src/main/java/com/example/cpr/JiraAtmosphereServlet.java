@@ -5,9 +5,6 @@ import org.atmosphere.cache.UUIDBroadcasterCache;
 import org.atmosphere.cpr.*;
 import org.atmosphere.interceptor.AtmosphereResourceLifecycleInterceptor;
 import org.atmosphere.interceptor.BroadcastOnPostAtmosphereInterceptor;
-
-import org.atmosphere.container.JSR356AsyncSupport;
-
 import org.apache.log4j.Logger;
 
 import javax.servlet.ServletConfig;
@@ -79,7 +76,7 @@ public class JiraAtmosphereServlet extends HttpServlet {
         BroadcastOnPostAtmosphereInterceptor interceptor = new BroadcastOnPostAtmosphereInterceptor();
 
 
-//        framework.interceptor(inter);
+        framework.interceptor(inter);
         framework.interceptor(interceptor);
     }
 
